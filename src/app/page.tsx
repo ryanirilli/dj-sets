@@ -4,6 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { AudioBarsProps } from "@/components/AudioBars";
 import type { WaveformBarsProps } from "@/components/WaveformBars";
+import type { SmokeVisualizerProps } from "@/components/SmokeVisualizer";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider } from "@/contexts/SceneContext";
 import { Toolbar, VisualizerType } from "@/components/Toolbar";
@@ -18,6 +19,11 @@ const WaveformBars = dynamic(() => import("@/components/WaveformBars"), {
   ssr: false,
   loading: () => null,
 }) as React.ComponentType<WaveformBarsProps>;
+
+const SmokeVisualizer = dynamic(() => import("@/components/SmokeVisualizer"), {
+  ssr: false,
+  loading: () => null,
+}) as React.ComponentType<SmokeVisualizerProps>;
 
 const Controls = () => {
   const { isPlaying, togglePlayPause } = useAudio();
@@ -44,12 +50,21 @@ interface HomeContentProps {
 function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
   const { audioData } = useAudio();
 
-  const sceneContent =
-    visualizerType === "circular" ? (
-      <AudioBars audioData={audioData} />
-    ) : (
-      <WaveformBars audioData={audioData} />
-    );
+  let sceneContent;
+
+  switch (visualizerType) {
+    case "circular":
+      sceneContent = <AudioBars audioData={audioData} />;
+      break;
+    case "waveform":
+      sceneContent = <WaveformBars audioData={audioData} />;
+      break;
+    case "smoke":
+      sceneContent = <SmokeVisualizer audioData={audioData} />;
+      break;
+    default:
+      sceneContent = <AudioBars audioData={audioData} />;
+  }
 
   return (
     <SceneProvider sceneContent={sceneContent}>

@@ -22,6 +22,16 @@ const AudioBars = ({ audioData }: AudioBarsProps) => {
     [count]
   );
 
+  // Create a bell curve distribution for the frequencies
+  const bellCurveDistribution = useMemo(() => {
+    return new Array(count).fill(0).map((_, i) => {
+      // Create a bell curve factor (0-1) with peak in the middle
+      const x = (i - count / 2) / (count / 4); // Normalize to [-2, 2]
+      const bellFactor = Math.exp(-0.5 * x * x); // Gaussian distribution
+      return bellFactor;
+    });
+  }, [count]);
+
   useEffect(() => {
     if (meshRef.current) {
       // Initialize all bars
@@ -46,11 +56,16 @@ const AudioBars = ({ audioData }: AudioBarsProps) => {
 
     // Update each bar based on audio data
     for (let i = 0; i < count; i++) {
-      const value = audioData[i] || 0;
-      const normalizedValue = value / 255;
       const angle = (i / count) * Math.PI * 2;
       const radius = 3;
 
+      // Get the corresponding frequency data
+      // Map the index to the audio data array with bell curve influence
+      const centerIndex = Math.floor(i * (audioData.length / count));
+      const value = audioData[centerIndex] || 0;
+      const normalizedValue = (value / 255) * bellCurveDistribution[i];
+
+      // Position and scale the bar
       tempObject.position.x = Math.cos(angle) * radius;
       tempObject.position.z = Math.sin(angle) * radius;
       tempObject.scale.y = normalizedValue * 5 + 0.2;
