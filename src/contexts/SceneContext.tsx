@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Preload } from "@react-three/drei";
 import * as THREE from "three";
@@ -68,12 +68,17 @@ export const useSceneContext = () => useContext(SceneContext);
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const [autoRotate, setAutoRotate] = useState(false);
 
+  // Log when scene content changes
+  useEffect(() => {
+    console.log("Scene content updated:", !!sceneContent);
+  }, [sceneContent]);
+
   return (
     <SceneContext.Provider value={{ autoRotate, setAutoRotate }}>
       <div className="absolute inset-0 flex flex-col w-full h-full">
         <div className="relative flex-1 h-full">
           <Canvas
-            camera={{ position: [0, 5, 10], fov: 50 }}
+            camera={{ position: [0, 2, 15], fov: 60 }}
             shadows
             className="touch-none"
           >
@@ -93,7 +98,12 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               autoRotate={autoRotate}
               autoRotateSpeed={0.5} // Slow rotation speed
             />
-            {/* <gridHelper args={[10, 100, "#444444", "#222222"]} /> */}
+
+            {/* Add a grid helper for debugging */}
+            <gridHelper
+              args={[100, 100, "#333333", "#222222"]}
+              position={[0, -5, 0]}
+            />
 
             <Preload all />
           </Canvas>

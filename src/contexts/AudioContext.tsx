@@ -40,6 +40,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number>();
+  const isSourceConnectedRef = useRef<boolean>(false);
+
+  // Define handleTimeUpdate and handleDurationChange first
+  const handleTimeUpdate = useCallback(() => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  }, []);
+
+  const handleDurationChange = useCallback(() => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  }, []);
 
   const initializeAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -54,17 +68,28 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (!audioRef.current || !audioContextRef.current || !analyserRef.current)
       return;
 
+    // If we already have a source connected to this audio element, don't create a new one
+    if (isSourceConnectedRef.current) {
+      return;
+    }
+
     // Clean up previous source if it exists
     if (sourceRef.current) {
       sourceRef.current.disconnect();
+      sourceRef.current = null;
     }
 
-    // Create and store new source
-    sourceRef.current = audioContextRef.current.createMediaElementSource(
-      audioRef.current
-    );
-    sourceRef.current.connect(analyserRef.current);
-    analyserRef.current.connect(audioContextRef.current.destination);
+    try {
+      // Create and store new source
+      sourceRef.current = audioContextRef.current.createMediaElementSource(
+        audioRef.current
+      );
+      sourceRef.current.connect(analyserRef.current);
+      analyserRef.current.connect(audioContextRef.current.destination);
+      isSourceConnectedRef.current = true;
+    } catch (error) {
+      console.error("Error setting up audio analyser:", error);
+    }
   }, []);
 
   const updateAudioData = useCallback(() => {
@@ -114,7 +139,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
     } else {
       initializeAudioContext();
-      if (!sourceRef.current) {
+      if (!isSourceConnectedRef.current) {
         setupAudioAnalyser();
       }
       audioRef.current.play();
@@ -127,41 +152,61 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setCurrentAudioFile(file);
       if (audioRef.current) {
         const wasPlaying = !audioRef.current.paused;
-        const currentTime = audioRef.current.currentTime;
 
-        audioRef.current.src = file;
-        audioRef.current.load();
+        // Pause current playback
+        audioRef.current.pause();
 
-        // Reset audio context and analyzer
+        // Create a new audio element to replace the current one
+        const newAudio = new Audio();
+        newAudio.src = file;
+
+        // When we create a new audio element, we need to reset our source connection state
+        isSourceConnectedRef.current = false;
+
+        // Clean up the old source if it exists
         if (sourceRef.current) {
           sourceRef.current.disconnect();
           sourceRef.current = null;
         }
 
-        if (wasPlaying) {
-          audioRef.current.play().then(() => {
-            if (!sourceRef.current) {
+        // Replace the audio element
+        if (audioRef.current.parentNode) {
+          // Store a reference to the current audio element
+          const currentAudio = audioRef.current;
+
+          // Add event listeners to the new audio element
+          newAudio.addEventListener("timeupdate", handleTimeUpdate);
+          newAudio.addEventListener("durationchange", handleDurationChange);
+          newAudio.addEventListener("ended", () => setIsPlaying(false));
+
+          // Replace the element in the DOM
+          if (currentAudio.parentNode) {
+            currentAudio.parentNode.replaceChild(newAudio, currentAudio);
+          }
+
+          // Update our ref (safely, as a mutable object property)
+          if (audioRef && typeof audioRef === "object") {
+            (audioRef as any).current = newAudio;
+          }
+
+          // If it was playing before, start playing the new audio
+          if (wasPlaying) {
+            initializeAudioContext();
+            newAudio.play().then(() => {
               setupAudioAnalyser();
-            }
-          });
+            });
+            setIsPlaying(true);
+          }
         }
-        audioRef.current.currentTime = currentTime;
       }
     },
-    [setupAudioAnalyser]
+    [
+      setupAudioAnalyser,
+      initializeAudioContext,
+      handleTimeUpdate,
+      handleDurationChange,
+    ]
   );
-
-  const handleTimeUpdate = useCallback(() => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  }, []);
-
-  const handleDurationChange = useCallback(() => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
-    }
-  }, []);
 
   const value = {
     audioData,

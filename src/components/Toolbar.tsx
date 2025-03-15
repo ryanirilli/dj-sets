@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
 import AudioSelector from "./AudioSelector";
-
-export type VisualizerType = "circular" | "waveform" | "smoke";
+import { VisualizerType, getVisualizers } from "@/types/visualizers";
 
 interface ToolbarProps {
   selectedVisualizer: VisualizerType;
@@ -17,6 +16,7 @@ export const Toolbar = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const { setAudioFile, currentAudioFile } = useAudio();
   const { autoRotate, setAutoRotate } = useSceneContext();
+  const visualizers = getVisualizers();
 
   return (
     <div className="fixed right-4 bottom-4 md:right-6 md:bottom-6 z-50">
@@ -32,37 +32,21 @@ export const Toolbar = ({
         >
           <div className="flex flex-col space-y-4">
             <div className="text-white font-medium mb-2">Visualizer</div>
-            <div className="flex space-x-2">
-              <button
-                className={`px-3 py-1.5 rounded-md text-sm ${
-                  selectedVisualizer === "circular"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-                onClick={() => onVisualizerChange("circular")}
-              >
-                Circular
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-md text-sm ${
-                  selectedVisualizer === "waveform"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-                onClick={() => onVisualizerChange("waveform")}
-              >
-                Waveform
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-md text-sm ${
-                  selectedVisualizer === "smoke"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-                onClick={() => onVisualizerChange("smoke")}
-              >
-                Smoke
-              </button>
+            <div className="flex flex-wrap gap-2">
+              {visualizers.map((visualizer) => (
+                <button
+                  key={visualizer.id}
+                  className={`px-3 py-1.5 rounded-md text-sm ${
+                    selectedVisualizer === visualizer.id
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                  onClick={() => onVisualizerChange(visualizer.id)}
+                  title={visualizer.description}
+                >
+                  {visualizer.name}
+                </button>
+              ))}
             </div>
 
             {/* Auto-Rotation Toggle */}
@@ -118,3 +102,5 @@ export const Toolbar = ({
     </div>
   );
 };
+
+export type { VisualizerType };

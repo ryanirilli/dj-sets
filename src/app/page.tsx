@@ -1,29 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
-import type { AudioBarsProps } from "@/components/AudioBars";
-import type { WaveformBarsProps } from "@/components/WaveformBars";
-import type { SmokeVisualizerProps } from "@/components/SmokeVisualizer";
+import { useState, useEffect } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider } from "@/contexts/SceneContext";
-import { Toolbar, VisualizerType } from "@/components/Toolbar";
-
-// Import visualizers with dynamic import to avoid SSR issues with Web Audio API
-const AudioBars = dynamic(() => import("@/components/AudioBars"), {
-  ssr: false,
-  loading: () => null,
-}) as React.ComponentType<AudioBarsProps>;
-
-const WaveformBars = dynamic(() => import("@/components/WaveformBars"), {
-  ssr: false,
-  loading: () => null,
-}) as React.ComponentType<WaveformBarsProps>;
-
-const SmokeVisualizer = dynamic(() => import("@/components/SmokeVisualizer"), {
-  ssr: false,
-  loading: () => null,
-}) as React.ComponentType<SmokeVisualizerProps>;
+import { Toolbar } from "@/components/Toolbar";
+import {
+  VisualizerType,
+  getVisualizer,
+  getDefaultVisualizer,
+  getVisualizers,
+} from "@/types/visualizers";
+import { registerAllVisualizers } from "@/visualizers";
 
 const Controls = () => {
   const { isPlaying, togglePlayPause } = useAudio();
@@ -49,25 +36,38 @@ interface HomeContentProps {
 
 function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
   const { audioData } = useAudio();
+  const [initialized, setInitialized] = useState(false);
 
-  let sceneContent;
+  // Register all visualizers on first render
+  useEffect(() => {
+    if (!initialized) {
+      registerAllVisualizers();
+      setInitialized(true);
+    }
+  }, [initialized]);
 
-  switch (visualizerType) {
-    case "circular":
-      sceneContent = <AudioBars audioData={audioData} />;
-      break;
-    case "waveform":
-      sceneContent = <WaveformBars audioData={audioData} />;
-      break;
-    case "smoke":
-      sceneContent = <SmokeVisualizer audioData={audioData} />;
-      break;
-    default:
-      sceneContent = <AudioBars audioData={audioData} />;
+  // Debug log when visualizer type changes
+  useEffect(() => {
+    console.log("Visualizer type changed to:", visualizerType);
+    console.log("Audio data available:", !!audioData);
+  }, [visualizerType, audioData]);
+
+  // Get the selected visualizer from registry
+  const visualizer = getVisualizer(visualizerType);
+  const VisualizerComponent = visualizer?.component;
+
+  // If no visualizer is found, use the default one
+  if (!visualizer || !VisualizerComponent) {
+    const defaultVisualizer = getDefaultVisualizer();
+    if (defaultVisualizer && visualizerType !== defaultVisualizer.id) {
+      // If there's a default visualizer and it's not the current one, switch to it
+      onVisualizerChange(defaultVisualizer.id);
+    }
+    return null; // Return null while switching to default
   }
 
   return (
-    <SceneProvider sceneContent={sceneContent}>
+    <SceneProvider sceneContent={<VisualizerComponent audioData={audioData} />}>
       <Controls />
       <Toolbar
         selectedVisualizer={visualizerType}
