@@ -1,8 +1,25 @@
-import { ReactNode, useState, useEffect } from "react";
-import { Canvas } from "@react-three/fiber";
+import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
+import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, Preload } from "@react-three/drei";
 import * as THREE from "three";
 import { createContext, useContext } from "react";
+import {
+  ColorPalette,
+  DEFAULT_PALETTE_ID,
+  getColorPaletteById,
+} from "@/types/colorPalettes";
+import { useAudio } from "./AudioContext";
+
+// Force render component to ensure continuous animation
+const ForceRender = () => {
+  const { gl, scene, camera } = useThree();
+
+  useFrame(() => {
+    gl.render(scene, camera);
+  });
+
+  return null;
+};
 
 interface SceneProviderProps {
   children: ReactNode;
@@ -56,31 +73,85 @@ const SceneLighting = () => {
 interface SceneContextType {
   autoRotate: boolean;
   setAutoRotate: (value: boolean) => void;
+  showGrid: boolean;
+  setShowGrid: (value: boolean) => void;
+  colorPalette: ColorPalette;
+  setColorPalette: (paletteId: string) => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
-  autoRotate: false,
+  autoRotate: true,
   setAutoRotate: () => {},
+  showGrid: true,
+  setShowGrid: () => {},
+  colorPalette: getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette,
+  setColorPalette: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
 
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
-  const [autoRotate, setAutoRotate] = useState(false);
+  const [autoRotate, setAutoRotate] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
+  const [colorPalette, setColorPaletteState] = useState<ColorPalette>(
+    getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette
+  );
+
+  const setColorPalette = useCallback((paletteId: string) => {
+    const palette = getColorPaletteById(paletteId);
+    if (palette) {
+      setColorPaletteState(palette);
+    }
+  }, []);
 
   // Log when scene content changes
   useEffect(() => {
     console.log("Scene content updated:", !!sceneContent);
   }, [sceneContent]);
 
+  // Dispose Three.js resources when component unmounts
+  useEffect(() => {
+    return () => {
+      // Force garbage collection of Three.js objects
+      if (typeof window !== "undefined") {
+        // Clear any cached resources in the Three.js cache
+        THREE.Cache.clear();
+      }
+    };
+  }, []);
+
   return (
-    <SceneContext.Provider value={{ autoRotate, setAutoRotate }}>
+    <SceneContext.Provider
+      value={{
+        autoRotate,
+        setAutoRotate,
+        showGrid,
+        setShowGrid,
+        colorPalette,
+        setColorPalette,
+      }}
+    >
       <div className="absolute inset-0 flex flex-col w-full h-full">
         <div className="relative flex-1 h-full">
           <Canvas
-            camera={{ position: [0, 2, 15], fov: 60 }}
+            camera={{
+              position: [0, 6, 8], // Lower height and further back for better perspective
+              fov: 55, // Slightly wider field of view to see more
+              near: 0.1,
+              far: 1000,
+            }}
             shadows
             className="touch-none"
+            // Add performance optimizations
+            gl={{
+              antialias: false, // Disable antialiasing for better performance
+              powerPreference: "high-performance",
+              alpha: false,
+              stencil: false,
+              depth: true,
+            }}
+            // Use 'always' instead of 'demand' to ensure continuous rendering
+            frameloop="always"
           >
             <color attach="background" args={["#000"]} />
 
@@ -90,20 +161,30 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
             {/* Scene content */}
             <group>{sceneContent}</group>
 
+            {/* Force render component to ensure animations run */}
+            <ForceRender />
+
             {/* Controls */}
             <OrbitControls
               makeDefault
               minDistance={2}
               maxDistance={50}
+              minPolarAngle={Math.PI / 8} // Limit how far overhead the camera can go
+              maxPolarAngle={Math.PI / 2} // Limit to not go below the horizon
               autoRotate={autoRotate}
               autoRotateSpeed={0.5} // Slow rotation speed
+              target={[0, 0, 0]} // Look at the center of the scene
+              enableDamping={true}
+              dampingFactor={0.05}
             />
 
             {/* Add a grid helper for debugging */}
-            <gridHelper
-              args={[100, 100, "#333333", "#222222"]}
-              position={[0, -5, 0]}
-            />
+            {showGrid && (
+              <gridHelper
+                args={[100, 100, "#333333", "#222222"]}
+                position={[0, -5, 0]}
+              />
+            )}
 
             <Preload all />
           </Canvas>

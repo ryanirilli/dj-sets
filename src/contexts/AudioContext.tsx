@@ -33,7 +33,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(null);
+  const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(
+    "/audio/set-00.mp3"
+  );
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -41,6 +43,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number>();
   const isSourceConnectedRef = useRef<boolean>(false);
+
+  // Add a throttle mechanism to reduce the frequency of audio data updates
+  const lastUpdateTimeRef = useRef(0);
+  const updateIntervalRef = useRef(1000 / 30); // 30 fps instead of 60
 
   // Define handleTimeUpdate and handleDurationChange first
   const handleTimeUpdate = useCallback(() => {
@@ -57,10 +63,52 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   const initializeAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 128;
+      try {
+        audioContextRef.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+        analyserRef.current = audioContextRef.current.createAnalyser();
+
+        // Reduce FFT size for better performance
+        analyserRef.current.fftSize = 128;
+
+        // Reduce smoothing for more responsive visuals but less CPU usage
+        analyserRef.current.smoothingTimeConstant = 0.5;
+      } catch (error) {
+        console.error("Failed to initialize AudioContext:", error);
+      }
+    }
+  }, []);
+
+  // Clean up audio resources
+  const cleanupAudioResources = useCallback(() => {
+    // Cancel any pending animation frames
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
+    }
+
+    // Disconnect source if it exists
+    if (sourceRef.current) {
+      try {
+        sourceRef.current.disconnect();
+      } catch (error) {
+        console.error("Error disconnecting audio source:", error);
+      }
+      sourceRef.current = null;
+    }
+
+    // Reset connection state
+    isSourceConnectedRef.current = false;
+
+    // Close audio context if it exists
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      try {
+        audioContextRef.current.close();
+      } catch (error) {
+        console.error("Error closing AudioContext:", error);
+      }
+      audioContextRef.current = null;
+      analyserRef.current = null;
     }
   }, []);
 
@@ -75,7 +123,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     // Clean up previous source if it exists
     if (sourceRef.current) {
-      sourceRef.current.disconnect();
+      try {
+        sourceRef.current.disconnect();
+      } catch (error) {
+        console.error("Error disconnecting previous source:", error);
+      }
       sourceRef.current = null;
     }
 
@@ -95,9 +147,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const updateAudioData = useCallback(() => {
     if (!analyserRef.current) return;
 
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
-    setAudioData(dataArray);
+    const now = performance.now();
+    // Throttle updates to reduce CPU usage
+    if (now - lastUpdateTimeRef.current < updateIntervalRef.current) {
+      animationFrameRef.current = requestAnimationFrame(updateAudioData);
+      return;
+    }
+
+    lastUpdateTimeRef.current = now;
+
+    try {
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      analyserRef.current.getByteFrequencyData(dataArray);
+      setAudioData(dataArray);
+    } catch (error) {
+      console.error("Error updating audio data:", error);
+    }
 
     animationFrameRef.current = requestAnimationFrame(updateAudioData);
   }, []);
@@ -106,10 +171,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isPlaying) {
       updateAudioData();
+    } else if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
     }
+
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
       }
     };
   }, [isPlaying, updateAudioData]);
@@ -117,35 +187,73 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (sourceRef.current) {
-        sourceRef.current.disconnect();
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
+      cleanupAudioResources();
     };
+  }, [cleanupAudioResources]);
+
+  // Initialize audio element with the current audio file
+  useEffect(() => {
+    if (audioRef.current && currentAudioFile) {
+      audioRef.current.src = currentAudioFile;
+      audioRef.current.load();
+    }
+  }, []);
+
+  // Resume AudioContext if it's suspended (needed for browsers that block autoplay)
+  const resumeAudioContext = useCallback(async () => {
+    if (
+      audioContextRef.current &&
+      audioContextRef.current.state === "suspended"
+    ) {
+      try {
+        await audioContextRef.current.resume();
+      } catch (error) {
+        console.error("Error resuming AudioContext:", error);
+      }
+    }
   }, []);
 
   const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
 
+    // If no audio file is set, don't do anything
+    if (!audioRef.current.src) {
+      console.warn("No audio file selected");
+      return;
+    }
+
     if (isPlaying) {
       audioRef.current.pause();
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
       }
     } else {
       initializeAudioContext();
+      resumeAudioContext();
+
       if (!isSourceConnectedRef.current) {
         setupAudioAnalyser();
       }
-      audioRef.current.play();
+
+      audioRef.current.play().catch((error) => {
+        console.error("Error playing audio:", error);
+        // Log more details about the audio element
+        console.log("Audio element state:", {
+          src: audioRef.current?.src,
+          readyState: audioRef.current?.readyState,
+          paused: audioRef.current?.paused,
+          error: audioRef.current?.error,
+        });
+      });
     }
     setIsPlaying(!isPlaying);
-  }, [isPlaying, initializeAudioContext, setupAudioAnalyser]);
+  }, [
+    isPlaying,
+    initializeAudioContext,
+    setupAudioAnalyser,
+    resumeAudioContext,
+  ]);
 
   const setAudioFile = useCallback(
     (file: string) => {
@@ -165,7 +273,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
         // Clean up the old source if it exists
         if (sourceRef.current) {
-          sourceRef.current.disconnect();
+          try {
+            sourceRef.current.disconnect();
+          } catch (error) {
+            console.error("Error disconnecting source:", error);
+          }
           sourceRef.current = null;
         }
 
@@ -192,9 +304,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           // If it was playing before, start playing the new audio
           if (wasPlaying) {
             initializeAudioContext();
-            newAudio.play().then(() => {
-              setupAudioAnalyser();
-            });
+            resumeAudioContext();
+
+            newAudio
+              .play()
+              .then(() => {
+                setupAudioAnalyser();
+              })
+              .catch((error) => {
+                console.error("Error playing new audio:", error);
+                setIsPlaying(false);
+              });
             setIsPlaying(true);
           }
         }
@@ -205,6 +325,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       initializeAudioContext,
       handleTimeUpdate,
       handleDurationChange,
+      resumeAudioContext,
     ]
   );
 
@@ -223,9 +344,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     <AudioContext.Provider value={value}>
       <audio
         ref={audioRef}
+        src={currentAudioFile || undefined}
         onTimeUpdate={handleTimeUpdate}
         onDurationChange={handleDurationChange}
         onEnded={() => setIsPlaying(false)}
+        preload="metadata"
       />
       {children}
     </AudioContext.Provider>

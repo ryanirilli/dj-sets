@@ -12,23 +12,6 @@ import {
 } from "@/types/visualizers";
 import { registerAllVisualizers } from "@/visualizers";
 
-const Controls = () => {
-  const { isPlaying, togglePlayPause } = useAudio();
-
-  return (
-    <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/40 backdrop-blur-sm">
-      <div className="max-w-md mx-auto">
-        <button
-          onClick={togglePlayPause}
-          className="w-full px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg ring-1 ring-inset ring-white/10 transition-all duration-200 text-sm font-medium"
-        >
-          {isPlaying ? "Pause" : "Play"}
-        </button>
-      </div>
-    </div>
-  );
-};
-
 interface HomeContentProps {
   visualizerType: VisualizerType;
   onVisualizerChange: (type: VisualizerType) => void;
@@ -68,7 +51,6 @@ function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
 
   return (
     <SceneProvider sceneContent={<VisualizerComponent audioData={audioData} />}>
-      <Controls />
       <Toolbar
         selectedVisualizer={visualizerType}
         onVisualizerChange={onVisualizerChange}

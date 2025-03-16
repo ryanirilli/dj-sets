@@ -28,23 +28,23 @@ const createSmokeTexture = () => {
   );
 
   // Sharper gradient with higher opacity for more defined particles
-  gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)"); // Increased from 0.7 to 0.95
-  gradient.addColorStop(0.2, "rgba(255, 255, 255, 0.8)"); // Increased from 0.65 to 0.8
-  gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.3)"); // Adjusted from 0.45 to 0.3
-  gradient.addColorStop(0.7, "rgba(255, 255, 255, 0.1)"); // Adjusted from 0.25 to 0.1
-  gradient.addColorStop(0.9, "rgba(255, 255, 255, 0.0)"); // Sharp cutoff for defined edge
+  gradient.addColorStop(0, "rgba(255, 255, 255, 1.0)"); // Increased from 0.95 to 1.0
+  gradient.addColorStop(0.2, "rgba(255, 255, 255, 0.9)"); // Increased from 0.8 to 0.9
+  gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.5)"); // Increased from 0.3 to 0.5
+  gradient.addColorStop(0.7, "rgba(255, 255, 255, 0.2)"); // Increased from 0.1 to 0.2
+  gradient.addColorStop(0.9, "rgba(255, 255, 255, 0.05)"); // Increased from 0.0 to 0.05
   gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
 
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
   // Add minimal noise for texture - reduced for cleaner appearance
-  ctx.globalAlpha = 0.02; // Reduced from 0.03 to 0.02
-  for (let i = 0; i < 2000; i++) {
-    // Reduced from 4000 to 2000
+  ctx.globalAlpha = 0.04; // Increased from 0.02 to 0.04
+  for (let i = 0; i < 3000; i++) {
+    // Increased from 2000 to 3000
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const radius = Math.random() * 1.5; // Reduced from 2 to 1.5
+    const radius = Math.random() * 2.0; // Increased from 1.5 to 2.0
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fillStyle = "white";
@@ -54,7 +54,7 @@ const createSmokeTexture = () => {
   // Apply minimal blur for sharper edges
   try {
     // @ts-ignore - filter is available in most browsers
-    ctx.filter = "blur(4px)"; // Reduced from 10px to 4px for sharper particles
+    ctx.filter = "blur(3px)"; // Reduced from 4px to 3px for sharper particles
     ctx.drawImage(canvas, 0, 0);
     // @ts-ignore
     ctx.filter = "none";
@@ -301,13 +301,13 @@ const fragmentShader = `
     
     // Apply color and alpha with less blending for sharper particles
     // Multiply color by texture but maintain more of the original color
-    vec3 color = vColor * texColor.rgb * 0.8; // Increased from 0.4 to 0.8 for more vibrant color
+    vec3 color = vColor * texColor.rgb * 1.2; // Increased from 0.8 to 1.2 for more vibrant color
     
     // Adjust alpha for more defined particles
-    float alpha = texColor.a * vAlpha * 0.7; // Increased from 0.35 to 0.7 for more opacity
+    float alpha = texColor.a * vAlpha * 0.9; // Increased from 0.7 to 0.9 for more opacity
     
     // Discard more transparent pixels for sharper edges
-    if (alpha < 0.05) discard; // Increased threshold from 0.01 to 0.05
+    if (alpha < 0.03) discard; // Decreased from 0.05 to 0.03 for more visible edges
     
     // Output color with alpha
     gl_FragColor = vec4(color, alpha);
@@ -318,7 +318,7 @@ const fragmentShader = `
 const EmissionPlane = () => {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[8, 8]} />
+      <planeGeometry args={[12, 12]} />
       <meshStandardMaterial
         color="#333"
         transparent
@@ -334,7 +334,7 @@ const EmissionPlane = () => {
 const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
   const { isPlaying } = useAudio();
   const pointsRef = useRef<THREE.Points>(null);
-  const particleCount = 1500; // Drastically reduced from 8000 to 1500
+  const particleCount = 6000; // Increased from 4000 to 6000
   const activeParticlesRef = useRef(0);
   const [activeArray, setActiveArray] = useState<Float32Array | null>(null);
   const [burstTimeArray, setBurstTimeArray] = useState<Float32Array | null>(
@@ -434,7 +434,7 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
-      uSize: { value: 300 }, // Reduced from 450 to 300 for smaller, more defined particles
+      uSize: { value: 400 }, // Increased from 350 to 400 for larger particles
       uTexture: { value: smokeTexture },
       uAudioData: { value: new THREE.Vector3(0, 0, 0) }, // New uniform for audio data [bass, mid, high]
     }),
@@ -527,8 +527,8 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
     const result = [];
     const centerIndex = Math.floor(adjustedNumPoints / 2);
 
-    // Calculate grid width - reduced for tighter spacing
-    const gridWidth = 6.0; // Reduced from 7.0 to 6.0 for tighter spacing
+    // Calculate grid width - increased for wider spacing
+    const gridWidth = 10.0; // Increased from 6.0 to 10.0 for wider emission area
     const pointSpacing = gridWidth / (adjustedNumPoints - 1);
 
     // Create the symmetrical pattern
@@ -562,32 +562,32 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
   ): [number, number, number] => {
     const [bass, mid, high] = bands;
 
-    // Vaporwave color palette
+    // Vaporwave color palette with increased intensity
     switch (bandType) {
       case "low":
-        // Low frequencies - hot pink to purple
+        // Low frequencies - hot pink to purple - more intense
         return [
-          0.9 * 0.6, // High red component
-          0.1 * 0.6, // Low green
-          0.8 * 0.6, // High blue - creates pink/purple
+          0.9 * 0.9, // Increased from 0.6 to 0.9
+          0.1 * 0.9, // Increased from 0.6 to 0.9
+          0.8 * 0.9, // Increased from 0.6 to 0.9
         ];
       case "mid":
-        // Mid frequencies - cyan to teal
+        // Mid frequencies - cyan to teal - more intense
         return [
-          0.0 * 0.6, // Low red
-          0.8 * 0.6, // High green
-          0.9 * 0.6, // High blue - creates cyan/teal
+          0.0 * 0.9, // Increased from 0.6 to 0.9
+          0.8 * 0.9, // Increased from 0.6 to 0.9
+          0.9 * 0.9, // Increased from 0.6 to 0.9
         ];
       case "high":
-        // High frequencies - yellow to orange
+        // High frequencies - yellow to orange - more intense
         return [
-          0.9 * 0.6, // High red
-          0.7 * 0.6, // Medium-high green
-          0.1 * 0.6, // Low blue - creates yellow/orange
+          0.9 * 0.9, // Increased from 0.6 to 0.9
+          0.7 * 0.9, // Increased from 0.6 to 0.9
+          0.1 * 0.9, // Increased from 0.6 to 0.9
         ];
       default:
         // Fallback - white
-        return [0.6, 0.6, 0.6];
+        return [0.9, 0.9, 0.9]; // Increased from 0.6 to 0.9
     }
   };
 
@@ -608,8 +608,8 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
     }
     currentEnergy /= snareRangeEnd - snareRangeStart;
 
-    // Threshold for beat detection - adjust based on testing
-    const beatThreshold = 0.5;
+    // Threshold for beat detection - lowered to detect more beats
+    const beatThreshold = 0.4; // Reduced from 0.5 to 0.4 to detect more beats
 
     // Check if enough time has passed since the last beat
     const timeSinceLastBeat = currentTime - lastBeatTimeRef.current;
@@ -651,8 +651,8 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
 
     const [bass, mid, high] = bands;
 
-    // Number of points in the waveform - reduced for fewer emission points
-    const waveformPoints = 15; // Reduced from 35 to 15
+    // Number of points in the waveform - increased for more emission points
+    const waveformPoints = 30; // Increased from 25 to 30
 
     // Get symmetrical waveform data for each frequency band
     // We'll use different parts of the audio data for each band
@@ -675,18 +675,18 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
     // but separated along the z-axis
     // Reversed order: high frequencies in front, low frequencies in back
     const bandPositions = {
-      high: 1.5, // High in front
+      high: 3.0, // Increased from 2.5 to 3.0
       mid: 0.0, // Mid in the middle
-      low: -1.5, // Bass in back
+      low: -3.0, // Increased from -2.5 to -3.0
     };
 
     // Rectangular emission area dimensions for each band
-    const rectangleWidth = 6.0; // Width of the emission rectangle (x-axis)
+    const rectangleWidth = 12.0; // Increased from 10.0 to 12.0 for wider emission area
     const rectangleDepth = {
       // Depth of the emission rectangle (z-axis) for each band
-      high: 1.0, // High frequencies get a 1.0 unit deep rectangle
-      mid: 1.5, // Mid frequencies get a 1.5 unit deep rectangle
-      low: 2.0, // Low frequencies get a 2.0 unit deep rectangle (wider spread)
+      high: 2.5, // Increased from 2.0 to 2.5
+      mid: 3.0, // Increased from 2.5 to 3.0
+      low: 3.5, // Increased from 3.0 to 3.5
     };
 
     // Determine which band has the shortest average value to place it in front
@@ -743,15 +743,21 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
       "aBand"
     ) as THREE.BufferAttribute;
 
+    // Beat multiplier - dramatically increase particles and effects during beats
+    const beatMultiplier = isBeat ? 3.0 : 1.0 + beatDecayRef.current * 1.5;
+
     // Process each band
     for (const band of bandOrder) {
-      // Calculate base particles per point - significantly reduced
-      const baseParticlesPerPoint = Math.max(1, Math.floor(1 + amplitude * 3)); // Reduced from 2/8 to 1/3
+      // Calculate base particles per point - dramatically increased during beats
+      const baseParticlesPerPoint = Math.max(
+        3,
+        Math.floor((3 + amplitude * 7) * (isBeat ? 2.0 : 1.0))
+      ); // Double particles on beat
 
-      // Adjust particles per point based on frequency bands - reduced boost
-      const bassBoost = Math.floor(bass * 1); // Reduced from 4 to 1
-      const midBoost = Math.floor(mid * 1); // Reduced from 3 to 1
-      const highBoost = Math.floor(high * 1); // Reduced from 2 to 1
+      // Adjust particles per point based on frequency bands - increased boost
+      const bassBoost = Math.floor(bass * 3 * beatMultiplier); // Apply beat multiplier
+      const midBoost = Math.floor(mid * 3 * beatMultiplier); // Apply beat multiplier
+      const highBoost = Math.floor(high * 3 * beatMultiplier); // Apply beat multiplier
 
       // Get color for this band
       const [r, g, b] = getColorFromFrequencyBands(
@@ -764,9 +770,11 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
       // Boost velocity for high frequencies during beats
       let velocityScale;
       if (band.type === "high" && isBeat) {
-        velocityScale = 0.6 + amplitude * 1.8; // Higher velocity during beats
+        velocityScale = 1.2 + amplitude * 3.0; // Dramatically increased from 0.8/2.2 to 1.2/3.0
+      } else if (isBeat) {
+        velocityScale = 1.0 + amplitude * 2.5; // Increased for all bands during beats
       } else {
-        velocityScale = 0.4 + amplitude * 1.2;
+        velocityScale = 0.6 + amplitude * 1.5 + beatDecayRef.current * 0.8; // Add beat decay influence
       }
 
       // Get z-position for this band
@@ -817,35 +825,39 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
           // Higher frequency = faster upward movement
           // Add some randomness to create more natural flow
           const upwardVelocity =
-            (0.3 + freqValue * 0.5 + Math.random() * 0.2) * velocityScale;
+            (0.4 + freqValue * 0.6 + Math.random() * 0.3) *
+            velocityScale *
+            (isBeat ? 1.5 : 1.0); // Extra boost during beats
 
           // Horizontal drift varies with frequency - higher frequencies get more drift
           // Bass frequencies stay more centered
-          // Reduced horizontal drift for straighter upward movement
-          // Increase drift for high frequencies during beats
+          // Increased horizontal drift for more dynamic movement
           let horizontalDrift;
           if (band.type === "high" && isBeat) {
-            horizontalDrift = velocityScale * 0.05; // More drift during beats
+            horizontalDrift = velocityScale * 0.12; // Increased from 0.08 to 0.12 during beats
+          } else if (isBeat) {
+            horizontalDrift = velocityScale * 0.08; // Increased for all bands during beats
           } else {
-            horizontalDrift = velocityScale * 0.02;
+            horizontalDrift =
+              velocityScale * 0.04 + beatDecayRef.current * 0.03; // Add beat decay influence
           }
 
           velocityAttr.setXYZ(
             index,
-            (Math.random() - 0.5) * horizontalDrift, // Reduced horizontal drift
+            (Math.random() - 0.5) * horizontalDrift,
             upwardVelocity, // Always positive upward velocity
-            (Math.random() - 0.5) * horizontalDrift // Reduced horizontal drift
+            (Math.random() - 0.5) * horizontalDrift
           );
 
           // Set particle color with vaporwave style for this band
           // Add slight variation for more natural look
           // Brighten high frequency colors during beats
-          let colorVariation = 0.05;
-          let colorIntensity = 1.0;
+          let colorVariation = 0.08; // Increased from 0.05 to 0.08
+          let colorIntensity = 1.3 + beatDecayRef.current * 0.5; // Add beat decay influence
 
-          if (band.type === "high" && isBeat) {
-            colorVariation = 0.1; // More variation during beats
-            colorIntensity = 1.3; // Brighter during beats
+          if (isBeat) {
+            colorVariation = 0.2; // Increased from 0.15 to 0.2 during beats
+            colorIntensity = 2.0; // Increased from 1.6 to 2.0 during beats - much brighter!
           }
 
           colorAttr.setXYZ(
@@ -866,10 +878,13 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
 
           // Set random rotation
           // Faster rotation for high frequencies during beats
-          if (band.type === "high" && isBeat) {
-            rotationAttr.setX(index, Math.random() * Math.PI * 4); // Faster rotation during beats
+          if (isBeat) {
+            rotationAttr.setX(index, Math.random() * Math.PI * 6); // Increased from 4 to 6 - much faster rotation
           } else {
-            rotationAttr.setX(index, Math.random() * Math.PI * 2);
+            rotationAttr.setX(
+              index,
+              Math.random() * Math.PI * (2 + beatDecayRef.current * 2)
+            ); // Add beat decay influence
           }
 
           // Set variable lifetime based on amplitude and frequency
@@ -877,15 +892,20 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
           // Longer lifetime for high frequencies during beats
           let lifetimeBase;
           if (band.type === "high" && isBeat) {
-            lifetimeBase = 3.0 + amplitude * 2.5; // Longer lifetime during beats
+            lifetimeBase = 4.0 + amplitude * 3.5; // Increased from 3.5/3.0 to 4.0/3.5
+          } else if (isBeat) {
+            lifetimeBase = 3.8 + amplitude * 3.2; // Increased for all bands during beats
           } else {
-            lifetimeBase = 2.5 + amplitude * 2.0;
+            lifetimeBase = 3.0 + amplitude * 2.5 + beatDecayRef.current * 1.0; // Add beat decay influence
           }
-          const lifetime = lifetimeBase + Math.random() * 1.5;
+          const lifetime = lifetimeBase + Math.random() * 2.0;
           lifetimeAttr.setX(index, lifetime);
 
           // Randomize fade start and length for each particle
-          const fadeStart = 0.3 + amplitude * 0.2 + Math.random() * 0.2;
+          // Faster fade-in during beats for more immediate impact
+          const fadeStart = isBeat
+            ? 0.1 + amplitude * 0.1 + Math.random() * 0.1 // Quicker fade-in during beats
+            : 0.3 + amplitude * 0.2 + Math.random() * 0.2;
           fadeStartAttr.setX(index, fadeStart);
 
           const fadeLengthMax = 0.95 - fadeStart;
@@ -896,21 +916,26 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
           fadeLengthAttr.setX(index, fadeLength);
 
           // Set particle scale - varies with frequency and amplitude
-          // Smaller particles for more defined appearance
+          // Larger particles during beats for more dramatic effect
           let scale;
-          if (band.type === "high" && isBeat) {
-            scale = 0.4 + (1.0 - freqValue) * 0.4 + Math.random() * 0.3; // Reduced from 0.6/0.6/0.5 to 0.4/0.4/0.3
+          if (isBeat) {
+            scale = (0.5 + (1.0 - freqValue) * 0.5 + Math.random() * 0.4) * 1.5; // 50% larger during beats
           } else {
-            scale = 0.3 + (1.0 - freqValue) * 0.3 + Math.random() * 0.2; // Reduced from 0.5/0.5/0.4 to 0.3/0.3/0.2
+            scale =
+              (0.3 + (1.0 - freqValue) * 0.3 + Math.random() * 0.2) *
+              (1.0 + beatDecayRef.current * 0.5); // Add beat decay influence
           }
           scaleAttr.setX(index, scale);
 
           // Set turbulence factor - increased for more floating movement
           let turbulenceFactor;
           if (band.type === "high" && isBeat) {
-            turbulenceFactor = 0.3 + Math.random() * 0.4; // Increased from 0.1/0.15 to 0.3/0.4
+            turbulenceFactor = 0.7 + Math.random() * 0.8; // Increased from 0.5/0.6 to 0.7/0.8
+          } else if (isBeat) {
+            turbulenceFactor = 0.6 + Math.random() * 0.7; // Increased for all bands during beats
           } else {
-            turbulenceFactor = 0.2 + Math.random() * 0.3; // Increased from 0.05/0.1 to 0.2/0.3
+            turbulenceFactor =
+              0.3 + Math.random() * 0.5 + beatDecayRef.current * 0.3; // Add beat decay influence
           }
           turbulenceAttr.setX(index, turbulenceFactor);
 
@@ -1001,13 +1026,23 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
       const isBeat = detectBeat(audioData, currentTime);
       if (isBeat) {
         setBeatActive(true);
+
+        // Pulse the particle size on beat
+        uniforms.uSize.value = 600; // Temporarily increase size dramatically on beat
+
+        // Schedule size reduction after the beat
+        setTimeout(() => {
+          if (uniforms.uSize.value > 400) {
+            uniforms.uSize.value = 400; // Return to normal size
+          }
+        }, 100); // Quick pulse effect
       }
 
-      // Update beat decay
+      // Update beat decay - slower decay for more persistent beat effects
       if (beatDecayRef.current > 0) {
         beatDecayRef.current = Math.max(
           0,
-          beatDecayRef.current - beatDecayRateRef.current
+          beatDecayRef.current - beatDecayRateRef.current * 0.7 // Reduced from 1.0 to 0.7 for slower decay
         );
         if (beatDecayRef.current === 0) {
           setBeatActive(false);
@@ -1015,8 +1050,14 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
       }
 
       // Continuous emission logic - emit particles at regular intervals
-      // Reduced emission frequency for fewer particles
-      const dynamicInterval = Math.max(0.05, 0.15 - audioAmplitude * 0.1); // Increased from 0.015/0.06 to 0.05/0.15
+      // Increased emission frequency for more particles
+      // Much more frequent emission during beats
+      const dynamicInterval = isBeat
+        ? 0.01 // Very fast emission during beats
+        : Math.max(
+            0.02,
+            0.08 - audioAmplitude * 0.06 - beatDecayRef.current * 0.03
+          ); // Add beat decay influence
 
       if (
         currentTime - lastContinuousEmissionTimeRef.current >=
@@ -1024,12 +1065,7 @@ const SmokeVisualizer = ({ audioData }: SmokeVisualizerProps) => {
         audioAmplitude > 0.01
       ) {
         // Create continuous emission with any detectable audio
-        createContinuousEmission(
-          currentTime,
-          audioAmplitude,
-          bands,
-          beatActive || beatDecayRef.current > 0
-        );
+        createContinuousEmission(currentTime, audioAmplitude, bands, isBeat);
 
         // Update last emission time
         lastContinuousEmissionTimeRef.current = currentTime;

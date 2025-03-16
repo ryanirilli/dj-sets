@@ -1,8 +1,9 @@
-import { useRef, useMemo, useEffect, useState } from "react";
+import { useRef, useMemo, useEffect, useState, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useAudio } from "@/contexts/AudioContext";
 import { VisualizerProps } from "@/types/visualizers";
+import { useColorPalette } from "@/hooks/useColorPalette";
 
 // Create a smoke texture
 const createSmokeTexture = () => {
@@ -331,7 +332,7 @@ const EmissionPlane = () => {
 const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   const { isPlaying } = useAudio();
   const pointsRef = useRef<THREE.Points>(null);
-  const particleCount = 1500; // Drastically reduced from 8000 to 1500
+  const particleCount = 800; // Further reduced from 1500 to 800
   const activeParticlesRef = useRef(0);
   const [activeArray, setActiveArray] = useState<Float32Array | null>(null);
   const [burstTimeArray, setBurstTimeArray] = useState<Float32Array | null>(
@@ -350,19 +351,38 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     null
   );
   const [bandArray, setBandArray] = useState<Float32Array | null>(null);
-  const [lastAudioAmplitude, setLastAudioAmplitude] = useState(0);
-  const [frequencyBands, setFrequencyBands] = useState<number[]>([0, 0, 0]); // [bass, mid, high]
-  const lastContinuousEmissionTimeRef = useRef(0); // Track last continuous emission time
-  const continuousEmissionIntervalRef = useRef(0.05); // Emit particles every 0.05 seconds (20 times per second)
+
+  // Use refs instead of state for these values to reduce re-renders
+  const lastAudioAmplitudeRef = useRef(0);
+  const frequencyBandsRef = useRef<number[]>([0, 0, 0]); // [bass, mid, high]
+  const lastContinuousEmissionTimeRef = useRef(0);
+  // Reduce emission frequency to improve performance
+  const continuousEmissionIntervalRef = useRef(0.1); // Increased from 0.05 to 0.1 (10 times per second)
 
   // Beat detection references
   const lastBeatTimeRef = useRef(0);
-  const beatCooldownRef = useRef(0.2); // Minimum time between beats in seconds
-  const [beatActive, setBeatActive] = useState(false);
+  const beatCooldownRef = useRef(0.2);
+  const beatActiveRef = useRef(false);
   const beatDecayRef = useRef(0);
-  const beatDecayRateRef = useRef(0.05); // How quickly the beat effect decays
+  const beatDecayRateRef = useRef(0.05);
 
-  // Create smoke texture
+  // Cleanup function to dispose resources
+  const cleanupResources = useCallback(() => {
+    if (pointsRef.current) {
+      const geometry = pointsRef.current.geometry;
+      const material = pointsRef.current.material as THREE.ShaderMaterial;
+
+      if (geometry) geometry.dispose();
+      if (material) {
+        if (material.uniforms.uTexture?.value) {
+          material.uniforms.uTexture.value.dispose();
+        }
+        material.dispose();
+      }
+    }
+  }, []);
+
+  // Create smoke texture with memoization
   const smokeTexture = useMemo(() => {
     // Only create texture in browser environment
     if (typeof window === "undefined") return null;
@@ -552,40 +572,94 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     return result;
   };
 
-  // Get color directly from frequency bands with vaporwave style
+  // Get color palette
+  const { getShaderColor, threeColors } = useColorPalette();
+
+  // Interpolate between two colors
+  const lerpColor = useCallback(
+    (colorA: THREE.Color, colorB: THREE.Color, t: number): THREE.Color => {
+      return new THREE.Color(
+        colorA.r + (colorB.r - colorA.r) * t,
+        colorA.g + (colorB.g - colorA.g) * t,
+        colorA.b + (colorB.b - colorA.b) * t
+      );
+    },
+    []
+  );
+
+  // Get color from palette gradient based on position (0-1)
+  const getGradientColor = useCallback(
+    (position: number): THREE.Color => {
+      // Ensure position is between 0 and 1
+      const t = Math.max(0, Math.min(1, position));
+
+      // Map position to palette segment
+      // For 4 colors, we have 3 segments: [0-0.333], [0.333-0.667], [0.667-1]
+      const segmentCount = threeColors.length - 1;
+      const segmentPosition = t * segmentCount;
+      const segmentIndex = Math.min(
+        Math.floor(segmentPosition),
+        segmentCount - 1
+      );
+
+      // Calculate interpolation factor within this segment
+      const segmentT = segmentPosition - segmentIndex;
+
+      // Get the two colors to interpolate between
+      const colorA = threeColors[segmentIndex];
+      const colorB = threeColors[segmentIndex + 1];
+
+      // Interpolate between the two colors
+      return lerpColor(colorA, colorB, segmentT);
+    },
+    [threeColors, lerpColor]
+  );
+
+  // Convert THREE.Color to shader-compatible [r,g,b] array
+  const colorToArray = useCallback(
+    (color: THREE.Color): [number, number, number] => {
+      return [color.r, color.g, color.b];
+    },
+    []
+  );
+
+  // Get color directly from frequency bands using the color palette gradient
   const getColorFromFrequencyBands = (
     bands: number[],
     bandType: "low" | "mid" | "high"
   ): [number, number, number] => {
-    const [bass, mid, high] = bands;
+    // Map frequency bands to gradient positions
+    // High frequencies get colors from left side of gradient (0-0.33)
+    // Mid frequencies get colors from middle of gradient (0.33-0.67)
+    // Low frequencies get colors from right side of gradient (0.67-1)
+    let gradientPosition: number;
 
-    // Vaporwave color palette
     switch (bandType) {
-      case "low":
-        // Low frequencies - hot pink to purple
-        return [
-          0.9 * 0.6, // High red component
-          0.1 * 0.6, // Low green
-          0.8 * 0.6, // High blue - creates pink/purple
-        ];
-      case "mid":
-        // Mid frequencies - cyan to teal
-        return [
-          0.0 * 0.6, // Low red
-          0.8 * 0.6, // High green
-          0.9 * 0.6, // High blue - creates cyan/teal
-        ];
       case "high":
-        // High frequencies - yellow to orange
-        return [
-          0.9 * 0.6, // High red
-          0.7 * 0.6, // Medium-high green
-          0.1 * 0.6, // Low blue - creates yellow/orange
-        ];
+        // High frequencies - left side of gradient (0-0.33)
+        // Use bass intensity to vary the exact position within this range
+        gradientPosition = 0.0 + bands[0] * 0.33;
+        break;
+      case "mid":
+        // Mid frequencies - middle of gradient (0.33-0.67)
+        // Use mid intensity to vary the exact position within this range
+        gradientPosition = 0.33 + bands[1] * 0.34;
+        break;
+      case "low":
+        // Low frequencies - right side of gradient (0.67-1)
+        // Use high intensity to vary the exact position within this range
+        gradientPosition = 0.67 + bands[2] * 0.33;
+        break;
       default:
-        // Fallback - white
-        return [0.6, 0.6, 0.6];
+        // Fallback - use middle of gradient
+        gradientPosition = 0.5;
     }
+
+    // Get color from gradient
+    const color = getGradientColor(gradientPosition);
+
+    // Scale down the color for better visual effect
+    return colorToArray(color).map((c) => c * 0.6) as [number, number, number];
   };
 
   // Detect beats (particularly snare hits) in the mid-high frequency range
@@ -953,7 +1027,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     bandAttr.needsUpdate = true;
   };
 
-  // Update animation and audio reactivity
+  // Update animation and audio reactivity with optimizations
   useFrame((state) => {
     if (
       !pointsRef.current ||
@@ -989,7 +1063,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
 
       // Analyze frequency bands
       const bands = analyzeFrequencyBands(audioData);
-      setFrequencyBands(bands);
+      frequencyBandsRef.current = bands;
 
       // Update audio data uniform for all particles to react to
       uniforms.uAudioData.value.set(bands[0], bands[1], bands[2]);
@@ -997,7 +1071,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       // Detect beats (particularly snare hits)
       const isBeat = detectBeat(audioData, currentTime);
       if (isBeat) {
-        setBeatActive(true);
+        beatActiveRef.current = true;
       }
 
       // Update beat decay
@@ -1007,13 +1081,13 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
           beatDecayRef.current - beatDecayRateRef.current
         );
         if (beatDecayRef.current === 0) {
-          setBeatActive(false);
+          beatActiveRef.current = false;
         }
       }
 
       // Continuous emission logic - emit particles at regular intervals
       // Reduced emission frequency for fewer particles
-      const dynamicInterval = Math.max(0.05, 0.15 - audioAmplitude * 0.1); // Increased from 0.015/0.06 to 0.05/0.15
+      const dynamicInterval = Math.max(0.1, 0.2 - audioAmplitude * 0.1); // Increased from 0.05/0.15 to 0.1/0.2
 
       if (
         currentTime - lastContinuousEmissionTimeRef.current >=
@@ -1025,7 +1099,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
           currentTime,
           audioAmplitude,
           bands,
-          beatActive || beatDecayRef.current > 0
+          beatActiveRef.current || beatDecayRef.current > 0
         );
 
         // Update last emission time
@@ -1033,12 +1107,12 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       }
 
       // Update last amplitude
-      setLastAudioAmplitude(audioAmplitude);
+      lastAudioAmplitudeRef.current = audioAmplitude;
     }
 
-    // Clean up old particles
-    if (currentTime % 1 < 0.01) {
-      // Every ~1 second
+    // Clean up old particles more frequently
+    if (currentTime % 0.5 < 0.01) {
+      // Every ~0.5 second instead of 1 second
       const activeAttr = pointsRef.current.geometry.getAttribute(
         "aActive"
       ) as THREE.BufferAttribute;
@@ -1066,6 +1140,13 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       activeParticlesRef.current = activeCount;
     }
   });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupResources();
+    };
+  }, [cleanupResources]);
 
   // Don't render until arrays are initialized
   if (
