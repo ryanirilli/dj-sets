@@ -14,21 +14,59 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
 
   // Animation state
   const rotationSpeedRef = useRef(0.003);
-  const [detail, setDetail] = useState(1);
+  const [faceCount, setFaceCount] = useState(7); // Default to 7 faces
   const nextDetailChangeRef = useRef(0);
   const scaleRef = useRef(1);
 
   // Base size - increased for better visibility
   const BASE_SIZE = 2.0; // Increased from default 1.0
 
-  // Create geometries with different detail levels
+  // Min and max face counts
+  const MIN_FACES = 3;
+  const MAX_FACES = 15;
+
+  // Create geometries with different face counts
   const geometries = useMemo(() => {
     const geos = [];
-    for (let i = 0; i <= 5; i++) {
-      geos.push(new THREE.IcosahedronGeometry(BASE_SIZE, i));
+
+    // Create geometries with different face counts from MIN_FACES to MAX_FACES
+    for (let faceCount = MIN_FACES; faceCount <= MAX_FACES; faceCount++) {
+      // Create a polyhedron with the specified number of faces
+      const geometry = createPolyhedronWithFaces(faceCount, BASE_SIZE);
+      geos.push(geometry);
     }
+
     return geos;
   }, []);
+
+  // Function to create a polyhedron with approximately the specified number of faces
+  function createPolyhedronWithFaces(
+    targetFaces: number,
+    radius: number
+  ): THREE.BufferGeometry {
+    let geometry;
+
+    // Choose appropriate geometry based on target face count
+    if (targetFaces <= 6) {
+      // Use cube (6 faces)
+      geometry = new THREE.BoxGeometry(radius, radius, radius);
+    } else if (targetFaces <= 8) {
+      // Use octahedron (8 faces)
+      geometry = new THREE.OctahedronGeometry(radius);
+    } else {
+      // Use tetrahedron and subdivide once (8 faces)
+      geometry = new THREE.TetrahedronGeometry(radius);
+
+      // If we need more faces, use a different base shape
+      if (targetFaces > 8) {
+        // Use dodecahedron (12 faces) but we'll only show some of them
+        geometry = new THREE.DodecahedronGeometry(radius);
+      }
+    }
+
+    // All geometries in Three.js are already BufferGeometry in newer versions
+    return geometry;
+  }
 
   // Simple shader for wireframe
   const shaderMaterial = useMemo(() => {
@@ -79,8 +117,10 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
     });
   }, [threeColors, colorUpdateKey]);
 
-  // Get a random detail level (0-5)
-  const getRandomDetail = () => Math.floor(Math.random() * 6);
+  // Get a random face count within our defined range
+  const getRandomFaceCount = () => {
+    return MIN_FACES + Math.floor(Math.random() * (MAX_FACES - MIN_FACES + 1));
+  };
 
   // Update animation and audio reactivity
   useFrame((state) => {
@@ -90,7 +130,7 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
 
     // Only process audio if playing
     if (isPlaying && audioData && audioData.length > 0) {
-      // Check if it's time to change detail level
+      // Check if it's time to change face count
       if (currentTime > nextDetailChangeRef.current) {
         // Calculate bass energy (for detail changes)
         const bassEnergy =
@@ -106,8 +146,8 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
         // Schedule next change
         nextDetailChangeRef.current = currentTime + changeInterval;
 
-        // Set new random detail level
-        setDetail(getRandomDetail());
+        // Set new random face count
+        setFaceCount(getRandomFaceCount());
       }
 
       // Calculate mid-range energy (for scaling)
@@ -143,10 +183,10 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
       scaleRef.current = 1.0;
       meshRef.current.scale.set(1, 1, 1);
 
-      // Occasionally change detail when not playing
+      // Occasionally change face count when not playing
       if (currentTime > nextDetailChangeRef.current) {
         nextDetailChangeRef.current = currentTime + 2.0;
-        setDetail(getRandomDetail());
+        setFaceCount(getRandomFaceCount());
       }
     }
   });
@@ -161,7 +201,7 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
 
   // Initialize
   useEffect(() => {
-    setDetail(1);
+    setFaceCount(7); // Start with 7 faces
     nextDetailChangeRef.current = 0;
     scaleRef.current = 1.0;
   }, []);
@@ -173,7 +213,11 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
 
   return (
     <group>
-      <mesh ref={meshRef} geometry={geometries[detail]} position={[0, 0, 0]}>
+      <mesh
+        ref={meshRef}
+        geometry={geometries[faceCount - MIN_FACES]}
+        position={[0, 0, 0]}
+      >
         <primitive
           object={shaderMaterial}
           ref={materialRef}
