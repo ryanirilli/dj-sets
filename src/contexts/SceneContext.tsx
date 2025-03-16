@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, Preload } from "@react-three/drei";
+import { OrbitControls, Preload, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import { createContext, useContext } from "react";
 import {
@@ -140,6 +140,12 @@ interface SceneContextType {
   setAutoRotateColors: (value: boolean) => void;
   transitionProgress: number; // Add transition progress
   toggleAutoRotate: () => void;
+  environment: string | null;
+  setEnvironment: (env: string | null) => void;
+  backgroundBlurriness: number;
+  setBackgroundBlurriness: (value: number) => void;
+  backgroundIntensity: number;
+  setBackgroundIntensity: (value: number) => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -153,6 +159,12 @@ const SceneContext = createContext<SceneContextType>({
   setAutoRotateColors: () => {},
   transitionProgress: 0,
   toggleAutoRotate: () => {},
+  environment: null,
+  setEnvironment: () => {},
+  backgroundBlurriness: 0.3,
+  setBackgroundBlurriness: () => {},
+  backgroundIntensity: 0.7,
+  setBackgroundIntensity: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -161,6 +173,9 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const [autoRotate, setAutoRotate] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [autoRotateColors, setAutoRotateColors] = useState(true);
+  const [environment, setEnvironment] = useState<string | null>(null);
+  const [backgroundBlurriness, setBackgroundBlurriness] = useState(0.3);
+  const [backgroundIntensity, setBackgroundIntensity] = useState(0.7);
   const [colorPalette, setColorPaletteState] = useState<ColorPalette>(
     getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette
   );
@@ -354,6 +369,12 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
         setAutoRotateColors,
         transitionProgress,
         toggleAutoRotate,
+        environment,
+        setEnvironment,
+        backgroundBlurriness,
+        setBackgroundBlurriness,
+        backgroundIntensity,
+        setBackgroundIntensity,
       }}
     >
       <div className="absolute inset-0 flex flex-col w-full h-full">
@@ -379,6 +400,17 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
             frameloop="always"
           >
             <color attach="background" args={["#000"]} />
+
+            {/* Environment map */}
+            {environment && (
+              <Environment
+                files={`/images/environments/${environment}`}
+                background={true}
+                backgroundBlurriness={backgroundBlurriness}
+                backgroundIntensity={backgroundIntensity}
+                environmentIntensity={1.2}
+              />
+            )}
 
             {/* Custom lighting setup for better smoke rendering */}
             <SceneLighting />

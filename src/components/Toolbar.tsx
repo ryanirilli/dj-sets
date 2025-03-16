@@ -3,6 +3,7 @@ import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
 import AudioSelectorShadcn from "./AudioSelectorShadcn";
 import ColorPaletteSelector from "./ColorPaletteSelector";
+import EnvironmentSelector from "./EnvironmentSelector";
 import { VisualizerType } from "@/types/visualizers";
 import { getVisualizers } from "@/lib/visualizer-registry";
 import {
@@ -39,6 +40,9 @@ export const Toolbar = ({
     setShowGrid,
     autoRotateColors,
     setAutoRotateColors,
+    environment,
+    backgroundBlurriness,
+    backgroundIntensity,
   } = useSceneContext();
   const visualizers = getVisualizers();
   const progressRef = useRef<HTMLDivElement>(null);
@@ -49,6 +53,7 @@ export const Toolbar = ({
     camera: false,
     colors: false,
     audio: false,
+    environment: false,
   });
 
   // Format time in minutes:seconds
@@ -200,6 +205,43 @@ export const Toolbar = ({
                             {visualizer.name}
                           </button>
                         ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Environment Section - NEW */}
+                  <div className="border-b border-gray-700">
+                    <button
+                      onClick={() => handleSectionToggle("environment")}
+                      className="flex justify-between items-center w-full py-4 px-4 font-medium text-white"
+                    >
+                      Environment
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          openSections.environment ? "rotate-180" : ""
+                        }`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    <div
+                      className={`overflow-hidden transition-all duration-300 ${
+                        openSections.environment
+                          ? "max-h-96 opacity-100 pb-4"
+                          : "max-h-0 opacity-0"
+                      }`}
+                    >
+                      <div className="pt-2 px-4">
+                        <EnvironmentSelector />
                       </div>
                     </div>
                   </div>
