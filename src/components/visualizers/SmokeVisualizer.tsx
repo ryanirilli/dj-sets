@@ -15,7 +15,7 @@ const createSmokeTexture = () => {
 
   if (!ctx) return null;
 
-  // Create a radial gradient for more defined particles with less smoke effect
+  // Create a radial gradient for softer particles with gentle fade
   const gradient = ctx.createRadialGradient(
     size / 2,
     size / 2,
@@ -25,34 +25,33 @@ const createSmokeTexture = () => {
     size / 2
   );
 
-  // Sharper gradient with higher opacity for more defined particles
-  gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)"); // Increased from 0.7 to 0.95
-  gradient.addColorStop(0.2, "rgba(255, 255, 255, 0.8)"); // Increased from 0.65 to 0.8
-  gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.3)"); // Adjusted from 0.45 to 0.3
-  gradient.addColorStop(0.7, "rgba(255, 255, 255, 0.1)"); // Adjusted from 0.25 to 0.1
-  gradient.addColorStop(0.9, "rgba(255, 255, 255, 0.0)"); // Sharp cutoff for defined edge
+  // Softer gradient with gentler fade for more graceful particles
+  gradient.addColorStop(0, "rgba(255, 255, 255, 0.8)"); // Reduced from 0.95 to 0.8
+  gradient.addColorStop(0.3, "rgba(255, 255, 255, 0.5)"); // Adjusted from 0.2/0.8 to 0.3/0.5
+  gradient.addColorStop(0.6, "rgba(255, 255, 255, 0.2)"); // Adjusted from 0.5/0.3 to 0.6/0.2
+  gradient.addColorStop(0.8, "rgba(255, 255, 255, 0.05)"); // Adjusted from 0.7/0.1 to 0.8/0.05
   gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
 
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
   // Add minimal noise for texture - reduced for cleaner appearance
-  ctx.globalAlpha = 0.02; // Reduced from 0.03 to 0.02
-  for (let i = 0; i < 2000; i++) {
-    // Reduced from 4000 to 2000
+  ctx.globalAlpha = 0.01; // Reduced from 0.02 to 0.01
+  for (let i = 0; i < 1500; i++) {
+    // Reduced from 2000 to 1500
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const radius = Math.random() * 1.5; // Reduced from 2 to 1.5
+    const radius = Math.random() * 1.2; // Reduced from 1.5 to 1.2
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fillStyle = "white";
     ctx.fill();
   }
 
-  // Apply minimal blur for sharper edges
+  // Apply minimal blur for softer edges
   try {
     // @ts-ignore - filter is available in most browsers
-    ctx.filter = "blur(4px)"; // Reduced from 10px to 4px for sharper particles
+    ctx.filter = "blur(3px)"; // Reduced from 4px to 3px for sharper particles
     ctx.drawImage(canvas, 0, 0);
     // @ts-ignore
     ctx.filter = "none";
@@ -68,11 +67,10 @@ const createSmokeTexture = () => {
 const vertexShader = `
   uniform float uTime;
   uniform float uSize;
-  uniform vec3 uAudioData; // New uniform for audio data [bass, mid, high]
+  uniform vec3 uAudioData; // Audio data [bass, mid, high]
   
   attribute float aScale;
   attribute float aOffset;
-  attribute vec3 aVelocity;
   attribute float aActive;
   attribute float aBurstTime;
   attribute vec3 aColor;
@@ -81,7 +79,9 @@ const vertexShader = `
   attribute float aFadeStart;
   attribute float aFadeLength;
   attribute float aTurbulence;
-  attribute float aBand; // New attribute to identify which frequency band the particle belongs to (0=low, 1=mid, 2=high)
+  attribute float aBand;
+  attribute vec3 aVelocity;
+  attribute vec3 aInitialVelocity;
   
   varying vec3 vColor;
   varying float vAlpha;
@@ -171,10 +171,11 @@ const vertexShader = `
     
     // Calculate particle age based on current time and burst time
     float age = uTime - aBurstTime;
-    float lifetime = aLifetime; // Variable lifetime per particle
+    float lifetime = aLifetime;
     float normalizedAge = clamp(age / lifetime, 0.0, 1.0);
     
     // Get the appropriate audio data based on the particle's band
+    // Note: We no longer use this for movement, only for initial properties
     float bandValue = 0.0;
     if (aBand < 0.5) {
       bandValue = uAudioData.x; // Low frequency (bass)
@@ -184,24 +185,21 @@ const vertexShader = `
       bandValue = uAudioData.z; // High frequency
     }
     
-    // Audio reactivity factor - stronger for newer particles
-    float audioReactivity = max(0.0, bandValue * (1.0 - normalizedAge * 0.7));
-    
     // Start with the original position
     vec3 pos = position;
     
-    // Calculate noise for horizontal movement - increased frequency and amplitude
-    float noiseScale = 2.0; // Increased from 1.5 to 2.0 for more variation
-    float noiseTime = uTime * 0.3; // Increased from 0.2 to 0.3 for faster movement
+    // Calculate noise for horizontal movement
+    float noiseScale = 1.2;
+    float noiseTime = uTime * 0.15;
     
-    // Add particle-specific variation with more randomness
+    // Add particle-specific variation
     vec3 noisePos = vec3(
-      position.x * noiseScale + noiseTime + aOffset * 15.0,
-      position.y * noiseScale * 0.5 + noiseTime + aOffset * 8.0,
-      position.z * noiseScale + noiseTime * 0.7 + aOffset * 12.0
+      position.x * noiseScale + noiseTime + aOffset * 10.0,
+      position.y * noiseScale * 0.5 + noiseTime + aOffset * 5.0,
+      position.z * noiseScale + noiseTime * 0.7 + aOffset * 8.0
     );
     
-    // Get noise values with more variation
+    // Get noise values
     float noiseX = snoise(noisePos);
     float noiseZ = snoise(noisePos + vec3(12.34, 56.78, 90.12));
     
@@ -209,38 +207,40 @@ const vertexShader = `
     float noiseX2 = snoise(noisePos * 2.0 + vec3(45.67, 89.01, 23.45));
     float noiseZ2 = snoise(noisePos * 2.0 + vec3(67.89, 12.34, 56.78));
     
-    // Calculate strictly upward movement - slightly slower
-    // 1. Base upward velocity - always positive but slower
-    float baseUpwardVelocity = 0.3 + audioReactivity * 0.6; // Reduced from 0.5 to 0.3
+    // Calculate upward movement - natural floating motion without audio reactivity
+    // 1. Base upward velocity from initial velocity
+    float baseUpwardVelocity = aVelocity.y * 1.5; // Keep the increased velocity
     
-    // 2. Age-based acceleration - particles move faster as they age
-    float ageAcceleration = 0.15 * normalizedAge; // Reduced from 0.2 to 0.15
+    // 2. Age-based acceleration - particles slow down as they age
+    float ageAcceleration = 0.5 * (1.0 - normalizedAge * 0.3);
     
-    // 3. Audio-reactive boost - stronger upward movement during loud passages
-    float audioBoost = audioReactivity * 0.4; // Reduced from 0.5 to 0.4
+    // 3. Early-age boost for initial plume effect (not audio reactive)
+    float earlyAgeBoost = max(0.0, 0.5 - normalizedAge) * 1.0;
     
-    // Combine for total upward movement - guaranteed to be positive but slower
-    float totalUpwardMovement = (baseUpwardVelocity + ageAcceleration + audioBoost) * age;
+    // Combine for total upward movement - natural deceleration without audio reactivity
+    float totalUpwardMovement = (baseUpwardVelocity * ageAcceleration + earlyAgeBoost) * age;
     
-    // Apply strictly upward movement
+    // Apply upward movement from initial velocity and calculated movement
     pos.y += totalUpwardMovement;
     
-    // Apply enhanced horizontal movement - much more pronounced
-    // Combine primary and secondary noise for more complex movement
-    // Significantly increased turbulence strength
-    float turbulenceStrength = aTurbulence * (1.2 + audioReactivity * 1.0); // Increased from 0.5 to 1.2
+    // Apply horizontal movement from initial velocity
+    pos.x += aVelocity.x * age;
+    pos.z += aVelocity.z * age;
     
-    // Apply primary noise movement
-    pos.x += noiseX * turbulenceStrength * age * 1.5; // Increased by 50%
-    pos.z += noiseZ * turbulenceStrength * age * 1.5; // Increased by 50%
+    // Apply natural horizontal movement from noise - no audio reactivity
+    float turbulenceStrength = aTurbulence * 0.7;
+    
+    // Apply noise-based movement for natural floating
+    pos.x += noiseX * turbulenceStrength * age * 0.6;
+    pos.z += noiseZ * turbulenceStrength * age * 0.6;
     
     // Apply secondary noise for more complex movement
-    pos.x += noiseX2 * turbulenceStrength * age * 0.8;
-    pos.z += noiseZ2 * turbulenceStrength * age * 0.8;
+    pos.x += noiseX2 * turbulenceStrength * age * 0.3;
+    pos.z += noiseZ2 * turbulenceStrength * age * 0.3;
     
     // Add slight sinusoidal movement for more floating effect
-    pos.x += sin(age * (0.5 + aOffset * 0.3)) * (0.2 + audioReactivity * 0.2) * age;
-    pos.z += cos(age * (0.4 + aOffset * 0.2)) * (0.2 + audioReactivity * 0.2) * age;
+    pos.x += sin(age * (0.2 + aOffset * 0.1)) * 0.08 * age;
+    pos.z += cos(age * (0.15 + aOffset * 0.05)) * 0.08 * age;
     
     // Individualized fade-out for each particle
     float fadeStart = aFadeStart;
@@ -249,7 +249,7 @@ const vertexShader = `
     float fadeAlpha = 1.0;
     if (normalizedAge > fadeStart) {
       float fadeProgress = (normalizedAge - fadeStart) / fadeLength;
-      fadeAlpha = 1.0 - pow(min(fadeProgress, 1.0), 2.5);
+      fadeAlpha = 1.0 - pow(min(fadeProgress, 1.0), 2.0);
     }
     vAlpha = max(0.0, fadeAlpha);
     
@@ -259,16 +259,20 @@ const vertexShader = `
     // Calculate position
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     
-    // Size based on scale and distance - particles grow as they rise
-    float sizeModifier = 1.0 + pow(normalizedAge, 0.7) * 2.5 + audioReactivity * 1.0;
-    gl_PointSize = uSize * aScale * sizeModifier * (1.0 / -mvPosition.z);
+    // Size based on scale and distance - natural growth without audio reactivity
+    float sizeModifier = 1.0 + pow(normalizedAge, 0.3) * 2.0;
+    
+    // No audio-reactive size boost, just use the initial scale
+    float size = uSize * aScale * sizeModifier * (1.0 / -mvPosition.z);
+    
+    gl_PointSize = size;
     gl_Position = projectionMatrix * mvPosition;
     
     // Pass the particle color to fragment shader
-    vColor = aColor * (1.0 + audioReactivity * 0.3);
+    vColor = aColor;
     
-    // Pass rotation to fragment shader - faster rotation
-    vRotation = aRotation + age * (0.5 + aOffset * 0.6 + audioReactivity * 0.7); // Increased rotation speed
+    // Pass rotation to fragment shader - slower rotation for more graceful effect
+    vRotation = aRotation + age * (0.2 + aOffset * 0.3);
   }
 `;
 
@@ -297,32 +301,40 @@ const fragmentShader = `
     // Sample texture with rotation
     vec4 texColor = texture2D(uTexture, rotatedUV);
     
-    // Apply color and alpha with less blending for sharper particles
-    // Multiply color by texture but maintain more of the original color
-    vec3 color = vColor * texColor.rgb * 0.8; // Increased from 0.4 to 0.8 for more vibrant color
+    // Apply color and alpha - enhanced brightness for more visible particles
+    vec3 color = vColor * texColor.rgb * 1.2; // Increased from 0.9 to 1.2
     
-    // Adjust alpha for more defined particles
-    float alpha = texColor.a * vAlpha * 0.7; // Increased from 0.35 to 0.7 for more opacity
+    // Add slight color shift for more vibrant appearance
+    color += vec3(0.05, 0.05, 0.05); // Add a small amount of white to brighten
     
-    // Discard more transparent pixels for sharper edges
-    if (alpha < 0.05) discard; // Increased threshold from 0.01 to 0.05
+    // Enhance contrast
+    color = pow(color, vec3(0.9)); // Slightly increase contrast
+    
+    // Adjust alpha for more defined particles - increased for better visibility
+    float alpha = texColor.a * vAlpha * 1.0; // Increased from 0.8 to 1.0
+    
+    // Discard fewer transparent pixels for more visible particles
+    if (alpha < 0.01) discard; // Reduced threshold from 0.02 to 0.01
     
     // Output color with alpha
     gl_FragColor = vec4(color, alpha);
   }
 `;
 
-// Plane mesh to visualize the emission surface
+// Plane mesh to visualize the emission surface - static and invisible
 const EmissionPlane = () => {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[8, 8]} />
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, 0, 0]}
+      receiveShadow
+      visible={false} // Make the plane invisible
+    >
+      <planeGeometry args={[8, 8, 8, 8]} />
       <meshStandardMaterial
-        color="#333"
+        color="#444"
         transparent
-        opacity={0.3}
-        roughness={0.8}
-        metalness={0.2}
+        opacity={0}
         side={THREE.DoubleSide}
       />
     </mesh>
@@ -330,9 +342,9 @@ const EmissionPlane = () => {
 };
 
 const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
-  const { isPlaying } = useAudio();
+  const { isPlaying, onBeat, beatTime, currentAudioFile } = useAudio();
   const pointsRef = useRef<THREE.Points>(null);
-  const particleCount = 800; // Further reduced from 1500 to 800
+  const particleCount = 800;
   const activeParticlesRef = useRef(0);
   const [activeArray, setActiveArray] = useState<Float32Array | null>(null);
   const [burstTimeArray, setBurstTimeArray] = useState<Float32Array | null>(
@@ -351,17 +363,17 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     null
   );
   const [bandArray, setBandArray] = useState<Float32Array | null>(null);
+  const [initialVelocityArray, setInitialVelocityArray] =
+    useState<Float32Array | null>(null);
 
   // Use refs instead of state for these values to reduce re-renders
   const lastAudioAmplitudeRef = useRef(0);
   const frequencyBandsRef = useRef<number[]>([0, 0, 0]); // [bass, mid, high]
   const lastContinuousEmissionTimeRef = useRef(0);
-  // Reduce emission frequency to improve performance
-  const continuousEmissionIntervalRef = useRef(0.1); // Increased from 0.05 to 0.1 (10 times per second)
+  const continuousEmissionIntervalRef = useRef(0.1);
 
   // Beat detection references
   const lastBeatTimeRef = useRef(0);
-  const beatCooldownRef = useRef(0.2);
   const beatActiveRef = useRef(false);
   const beatDecayRef = useRef(0);
   const beatDecayRateRef = useRef(0.05);
@@ -404,13 +416,15 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
 
     // Initialize all particles
     for (let i = 0; i < particleCount; i++) {
-      // Initial positions on the grid plane (y=0)
-      positions[i * 3] = 0; // x
-      positions[i * 3 + 1] = 0; // y (on the grid)
-      positions[i * 3 + 2] = 0; // z
+      // Initial positions - spread them out slightly to avoid all starting at the same point
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * 0.1; // Very small initial spread
+      positions[i * 3] = Math.cos(angle) * radius; // x
+      positions[i * 3 + 1] = 0.05; // y (slightly above the grid)
+      positions[i * 3 + 2] = Math.sin(angle) * radius; // z
 
-      // Random scale for each particle
-      scales[i] = Math.random() * 0.5 + 0.5;
+      // Random scale for each particle - smaller for more natural look
+      scales[i] = Math.random() * 0.5 + 0.3;
 
       // Random offset for staggered animation
       offsets[i] = Math.random() * 5;
@@ -434,7 +448,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     const fadeStarts = new Float32Array(particleCount).fill(0);
     const fadeLengths = new Float32Array(particleCount).fill(0);
     const turbulence = new Float32Array(particleCount).fill(0);
-    const bands = new Float32Array(particleCount).fill(0); // New array to track which band each particle belongs to
+    const bands = new Float32Array(particleCount).fill(0);
+    const initialVelocities = new Float32Array(particleCount * 3).fill(0);
 
     setActiveArray(active);
     setBurstTimeArray(burstTime);
@@ -445,15 +460,16 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     setFadeLengthArray(fadeLengths);
     setTurbulenceArray(turbulence);
     setBandArray(bands);
+    setInitialVelocityArray(initialVelocities);
   }, [particleCount]);
 
   // Create uniforms for the shader
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
-      uSize: { value: 300 }, // Reduced from 450 to 300 for smaller, more defined particles
+      uSize: { value: 200 }, // Increased from 150 to 200 for more visible particles
       uTexture: { value: smokeTexture },
-      uAudioData: { value: new THREE.Vector3(0, 0, 0) }, // New uniform for audio data [bass, mid, high]
+      uAudioData: { value: new THREE.Vector3(0, 0, 0) },
     }),
     [smokeTexture]
   );
@@ -476,28 +492,69 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     }
   }, [isPlaying, activeArray, particleCount]);
 
-  // Analyze audio data into frequency bands
-  const analyzeFrequencyBands = (audioData: Uint8Array) => {
+  // Calculate average audio amplitude from frequency data
+  const calculateAudioAmplitude = (audioData: Uint8Array): number => {
+    if (!audioData || audioData.length === 0) return 0;
+
+    let totalSum = 0;
+    const totalSamples = Math.min(64, audioData.length);
+
+    for (let i = 0; i < totalSamples; i++) {
+      totalSum += audioData[i] / 255;
+    }
+
+    return totalSum / totalSamples;
+  };
+
+  // Analyze frequency bands (bass, mid, high)
+  const analyzeFrequencyBands = (audioData: Uint8Array): number[] => {
     if (!audioData || audioData.length === 0) return [0, 0, 0];
 
-    // Define frequency band ranges (assuming 128 frequency bins)
-    const bandRanges = [
-      [0, 8], // Bass: 0-8
-      [9, 32], // Mid: 9-32
-      [33, 64], // High: 33-64
-    ];
+    // Define frequency ranges
+    const bassRange = [0, 10]; // Low frequencies
+    const midRange = [11, 40]; // Mid frequencies
+    const highRange = [41, 80]; // High frequencies
 
-    // Calculate average for each band
-    const bands = bandRanges.map(([start, end]) => {
-      let sum = 0;
-      const count = Math.min(end, audioData.length) - start;
-      if (count <= 0) return 0;
+    // Calculate average energy in each band
+    let bassSum = 0,
+      midSum = 0,
+      highSum = 0;
 
-      for (let i = start; i < Math.min(end, audioData.length); i++) {
-        sum += audioData[i] / 255;
-      }
-      return sum / count;
-    });
+    for (
+      let i = bassRange[0];
+      i <= Math.min(bassRange[1], audioData.length - 1);
+      i++
+    ) {
+      bassSum += audioData[i] / 255;
+    }
+
+    for (
+      let i = midRange[0];
+      i <= Math.min(midRange[1], audioData.length - 1);
+      i++
+    ) {
+      midSum += audioData[i] / 255;
+    }
+
+    for (
+      let i = highRange[0];
+      i <= Math.min(highRange[1], audioData.length - 1);
+      i++
+    ) {
+      highSum += audioData[i] / 255;
+    }
+
+    const bassAvg = bassSum / (bassRange[1] - bassRange[0] + 1);
+    const midAvg = midSum / (midRange[1] - midRange[0] + 1);
+    const highAvg = highSum / (highRange[1] - highRange[0] + 1);
+
+    const bands = [bassAvg, midAvg, highAvg];
+    frequencyBandsRef.current = bands;
+
+    // Update audio data uniform for shader
+    if (uniforms && uniforms.uAudioData) {
+      uniforms.uAudioData.value.set(bassAvg, midAvg, highAvg);
+    }
 
     return bands;
   };
@@ -662,48 +719,11 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     return colorToArray(color).map((c) => c * 0.6) as [number, number, number];
   };
 
-  // Detect beats (particularly snare hits) in the mid-high frequency range
-  const detectBeat = (audioData: Uint8Array, currentTime: number): boolean => {
-    if (!audioData || audioData.length === 0) return false;
-
-    // Focus on mid-high frequency range where snare hits are typically found
-    // Snares usually have significant energy in the 200Hz-12kHz range
-    // This roughly corresponds to bins 20-60 in a 128-bin FFT
-    const snareRangeStart = 20;
-    const snareRangeEnd = Math.min(60, audioData.length);
-
-    // Calculate current energy in the snare frequency range
-    let currentEnergy = 0;
-    for (let i = snareRangeStart; i < snareRangeEnd; i++) {
-      currentEnergy += audioData[i] / 255;
-    }
-    currentEnergy /= snareRangeEnd - snareRangeStart;
-
-    // Threshold for beat detection - adjust based on testing
-    const beatThreshold = 0.5;
-
-    // Check if enough time has passed since the last beat
-    const timeSinceLastBeat = currentTime - lastBeatTimeRef.current;
-
-    // Detect beat if energy exceeds threshold and cooldown has passed
-    if (
-      currentEnergy > beatThreshold &&
-      timeSinceLastBeat > beatCooldownRef.current
-    ) {
-      lastBeatTimeRef.current = currentTime;
-      beatDecayRef.current = 1.0; // Full beat intensity
-      return true;
-    }
-
-    return false;
-  };
-
   // Create continuous emission of particles based on audio data
   const createContinuousEmission = (
     time: number,
     amplitude: number,
-    bands: number[],
-    isBeat: boolean
+    bands: number[]
   ) => {
     if (
       !pointsRef.current ||
@@ -716,322 +736,141 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       !fadeStartArray ||
       !fadeLengthArray ||
       !turbulenceArray ||
-      !bandArray
+      !bandArray ||
+      !initialVelocityArray
     )
       return;
 
-    const [bass, mid, high] = bands;
+    // Calculate how many particles to emit based on amplitude
+    const particlesToEmit = Math.floor(2 + amplitude * 4);
+    if (particlesToEmit <= 0) return;
 
-    // Number of points in the waveform - reduced for fewer emission points
-    const waveformPoints = 15; // Reduced from 35 to 15
-
-    // Get symmetrical waveform data for each frequency band
-    // We'll use different parts of the audio data for each band
-    const lowBandData = createSymmetricalWaveform(
-      audioData.slice(0, 8), // Bass frequencies (0-8)
-      waveformPoints
-    );
-
-    const midBandData = createSymmetricalWaveform(
-      audioData.slice(9, 32), // Mid frequencies (9-32)
-      waveformPoints
-    );
-
-    const highBandData = createSymmetricalWaveform(
-      audioData.slice(33, 64), // High frequencies (33-64)
-      waveformPoints
-    );
-
-    // Z-positions for each band - all bands on the grid plane (y=0)
-    // but separated along the z-axis
-    // Reversed order: high frequencies in front, low frequencies in back
-    const bandPositions = {
-      high: 1.5, // High in front
-      mid: 0.0, // Mid in the middle
-      low: -1.5, // Bass in back
-    };
-
-    // Rectangular emission area dimensions for each band
-    const rectangleWidth = 6.0; // Width of the emission rectangle (x-axis)
-    const rectangleDepth = {
-      // Depth of the emission rectangle (z-axis) for each band
-      high: 1.0, // High frequencies get a 1.0 unit deep rectangle
-      mid: 1.5, // Mid frequencies get a 1.5 unit deep rectangle
-      low: 2.0, // Low frequencies get a 2.0 unit deep rectangle (wider spread)
-    };
-
-    // Determine which band has the shortest average value to place it in front
-    const avgLow =
-      lowBandData.reduce((sum, point) => sum + point.value, 0) / waveformPoints;
-    const avgMid =
-      midBandData.reduce((sum, point) => sum + point.value, 0) / waveformPoints;
-    const avgHigh =
-      highBandData.reduce((sum, point) => sum + point.value, 0) /
-      waveformPoints;
-
-    // Sort bands by average value (ascending)
-    const bandOrder = [
-      { type: "low", data: lowBandData, avg: avgLow },
-      { type: "mid", data: midBandData, avg: avgMid },
-      { type: "high", data: highBandData, avg: avgHigh },
-    ].sort((a, b) => a.avg - b.avg);
-
-    // Update particle attributes
-    const positionAttr = pointsRef.current.geometry.getAttribute(
+    // Emit particles in a simpler pattern
+    const geometry = pointsRef.current.geometry;
+    const positionAttr = geometry.getAttribute(
       "position"
     ) as THREE.BufferAttribute;
-    const velocityAttr = pointsRef.current.geometry.getAttribute(
+    const velocityAttr = geometry.getAttribute(
       "aVelocity"
     ) as THREE.BufferAttribute;
-    const activeAttr = pointsRef.current.geometry.getAttribute(
+    const initialVelocityAttr = geometry.getAttribute(
+      "aInitialVelocity"
+    ) as THREE.BufferAttribute;
+    const activeAttr = geometry.getAttribute(
       "aActive"
     ) as THREE.BufferAttribute;
-    const burstTimeAttr = pointsRef.current.geometry.getAttribute(
+    const burstTimeAttr = geometry.getAttribute(
       "aBurstTime"
     ) as THREE.BufferAttribute;
-    const colorAttr = pointsRef.current.geometry.getAttribute(
-      "aColor"
-    ) as THREE.BufferAttribute;
-    const rotationAttr = pointsRef.current.geometry.getAttribute(
+    const colorAttr = geometry.getAttribute("aColor") as THREE.BufferAttribute;
+    const rotationAttr = geometry.getAttribute(
       "aRotation"
     ) as THREE.BufferAttribute;
-    const lifetimeAttr = pointsRef.current.geometry.getAttribute(
+    const lifetimeAttr = geometry.getAttribute(
       "aLifetime"
     ) as THREE.BufferAttribute;
-    const fadeStartAttr = pointsRef.current.geometry.getAttribute(
+    const fadeStartAttr = geometry.getAttribute(
       "aFadeStart"
     ) as THREE.BufferAttribute;
-    const fadeLengthAttr = pointsRef.current.geometry.getAttribute(
+    const fadeLengthAttr = geometry.getAttribute(
       "aFadeLength"
     ) as THREE.BufferAttribute;
-    const scaleAttr = pointsRef.current.geometry.getAttribute(
-      "aScale"
-    ) as THREE.BufferAttribute;
-    const turbulenceAttr = pointsRef.current.geometry.getAttribute(
+    const scaleAttr = geometry.getAttribute("aScale") as THREE.BufferAttribute;
+    const turbulenceAttr = geometry.getAttribute(
       "aTurbulence"
     ) as THREE.BufferAttribute;
-    const bandAttr = pointsRef.current.geometry.getAttribute(
-      "aBand"
-    ) as THREE.BufferAttribute;
+    const bandAttr = geometry.getAttribute("aBand") as THREE.BufferAttribute;
 
-    // Process each band
-    for (const band of bandOrder) {
-      // Calculate base particles per point - significantly reduced
-      const baseParticlesPerPoint = Math.max(1, Math.floor(1 + amplitude * 3)); // Reduced from 2/8 to 1/3
+    // Find inactive particles to use
+    let particlesActivated = 0;
+    for (
+      let i = 0;
+      i < particleCount && particlesActivated < particlesToEmit;
+      i++
+    ) {
+      if (activeAttr.getX(i) < 0.5) {
+        // Activate this particle
+        activeAttr.setX(i, 1.0);
+        burstTimeAttr.setX(i, time);
 
-      // Adjust particles per point based on frequency bands - reduced boost
-      const bassBoost = Math.floor(bass * 1); // Reduced from 4 to 1
-      const midBoost = Math.floor(mid * 1); // Reduced from 3 to 1
-      const highBoost = Math.floor(high * 1); // Reduced from 2 to 1
+        // Set initial position - random point on the emission plane
+        const posX = (Math.random() - 0.5) * 6;
+        const posZ = (Math.random() - 0.5) * 6;
+        const posY = 0.05; // Slightly above the plane
+        positionAttr.setXYZ(i, posX, posY, posZ);
 
-      // Get color for this band
-      const [r, g, b] = getColorFromFrequencyBands(
-        bands,
-        band.type as "low" | "mid" | "high"
-      );
+        // Set velocity - upward with slight outward direction
+        const upwardVelocity = 0.4 + Math.random() * 0.4;
+        const outwardFactor = 0.1 + Math.random() * 0.2;
 
-      // Calculate velocity scale - responsive to audio characteristics
-      // Higher amplitude = faster upward movement
-      // Boost velocity for high frequencies during beats
-      let velocityScale;
-      if (band.type === "high" && isBeat) {
-        velocityScale = 0.6 + amplitude * 1.8; // Higher velocity during beats
-      } else {
-        velocityScale = 0.4 + amplitude * 1.2;
-      }
+        // Calculate outward direction
+        const dirX = posX === 0 ? Math.random() - 0.5 : Math.sign(posX);
+        const dirZ = posZ === 0 ? Math.random() - 0.5 : Math.sign(posZ);
 
-      // Get z-position for this band
-      const zPos = bandPositions[band.type as keyof typeof bandPositions];
+        // Set velocity
+        const vx = dirX * outwardFactor;
+        const vy = upwardVelocity;
+        const vz = dirZ * outwardFactor;
 
-      // Get rectangle depth for this band
-      const rectDepth =
-        rectangleDepth[band.type as keyof typeof rectangleDepth];
+        velocityAttr.setXYZ(i, vx, vy, vz);
+        initialVelocityAttr.setXYZ(i, vx, vy, vz);
 
-      // Create particles for each point in the waveform
-      for (let pointIndex = 0; pointIndex < waveformPoints; pointIndex++) {
-        // Get the waveform data for this point
-        const { position: xPos, value: freqValue } = band.data[pointIndex];
+        // Set color based on frequency bands
+        const bandType = ["low", "mid", "high"][
+          Math.floor(Math.random() * 3)
+        ] as "low" | "mid" | "high";
+        const [r, g, b] = getColorFromFrequencyBands(bands, bandType);
+        colorAttr.setXYZ(i, r, g, b);
 
-        // Use a very low threshold to ensure continuous emission
-        // Only skip points with essentially no energy
-        if (freqValue < 0.01) continue;
+        // Set random rotation
+        rotationAttr.setX(i, Math.random() * Math.PI * 2);
 
-        // Create particles for this waveform point
-        for (let i = 0; i < baseParticlesPerPoint; i++) {
-          // Reuse inactive particles or use new ones
-          const index = activeParticlesRef.current % particleCount;
+        // Set lifetime
+        const lifetime = 2.0 + Math.random() * 1.5;
+        lifetimeAttr.setX(i, lifetime);
 
-          // Calculate position with rectangular distribution
-          // Instead of just spreading around a point, create a rectangular area
+        // Set fade parameters
+        fadeStartAttr.setX(i, 0.7);
+        fadeLengthAttr.setX(i, 0.3);
 
-          // For x-position: Use the waveform data as a weight for the center of the rectangle
-          // but allow particles to spread across the entire width
-          // This creates a rectangular emission area that's still influenced by the waveform
-          const xWeight = 0.7; // How much the waveform influences x position (0-1)
-          const xRandom = (Math.random() - 0.5) * rectangleWidth; // Random position across full width
-          const xFinal = xPos * xWeight + xRandom * (1 - xWeight);
+        // Set turbulence
+        turbulenceAttr.setX(i, 0.3 + Math.random() * 0.3);
 
-          // For z-position: Create a rectangular depth based on the band type
-          // with the center at the band's z-position
-          const zRandom = (Math.random() - 0.5) * rectDepth;
-          const zFinal = zPos + zRandom;
+        // Set band
+        bandAttr.setX(i, Math.floor(Math.random() * 3));
 
-          // Position particles in a rectangular area on the grid plane (y=0)
-          positionAttr.setXYZ(
-            index,
-            xFinal, // X position influenced by waveform but spread across rectangle width
-            0, // All bands on the grid plane (y=0)
-            zFinal // Z position based on band with rectangular spread
-          );
-
-          // Set velocity - upward movement scaled by frequency value and audio characteristics
-          // Higher frequency = faster upward movement
-          // Add some randomness to create more natural flow
-          const upwardVelocity =
-            (0.3 + freqValue * 0.5 + Math.random() * 0.2) * velocityScale;
-
-          // Horizontal drift varies with frequency - higher frequencies get more drift
-          // Bass frequencies stay more centered
-          // Reduced horizontal drift for straighter upward movement
-          // Increase drift for high frequencies during beats
-          let horizontalDrift;
-          if (band.type === "high" && isBeat) {
-            horizontalDrift = velocityScale * 0.05; // More drift during beats
-          } else {
-            horizontalDrift = velocityScale * 0.02;
-          }
-
-          velocityAttr.setXYZ(
-            index,
-            (Math.random() - 0.5) * horizontalDrift, // Reduced horizontal drift
-            upwardVelocity, // Always positive upward velocity
-            (Math.random() - 0.5) * horizontalDrift // Reduced horizontal drift
-          );
-
-          // Set particle color with vaporwave style for this band
-          // Add slight variation for more natural look
-          // Brighten high frequency colors during beats
-          let colorVariation = 0.05;
-          let colorIntensity = 1.0;
-
-          if (band.type === "high" && isBeat) {
-            colorVariation = 0.1; // More variation during beats
-            colorIntensity = 1.3; // Brighter during beats
-          }
-
-          colorAttr.setXYZ(
-            index,
-            Math.min(
-              1.0,
-              r * colorIntensity + (Math.random() - 0.5) * colorVariation
-            ),
-            Math.min(
-              1.0,
-              g * colorIntensity + (Math.random() - 0.5) * colorVariation
-            ),
-            Math.min(
-              1.0,
-              b * colorIntensity + (Math.random() - 0.5) * colorVariation
-            )
-          );
-
-          // Set random rotation
-          // Faster rotation for high frequencies during beats
-          if (band.type === "high" && isBeat) {
-            rotationAttr.setX(index, Math.random() * Math.PI * 4); // Faster rotation during beats
-          } else {
-            rotationAttr.setX(index, Math.random() * Math.PI * 2);
-          }
-
-          // Set variable lifetime based on amplitude and frequency
-          // Higher amplitudes get longer lifetimes for more dramatic effect
-          // Longer lifetime for high frequencies during beats
-          let lifetimeBase;
-          if (band.type === "high" && isBeat) {
-            lifetimeBase = 3.0 + amplitude * 2.5; // Longer lifetime during beats
-          } else {
-            lifetimeBase = 2.5 + amplitude * 2.0;
-          }
-          const lifetime = lifetimeBase + Math.random() * 1.5;
-          lifetimeAttr.setX(index, lifetime);
-
-          // Randomize fade start and length for each particle
-          const fadeStart = 0.3 + amplitude * 0.2 + Math.random() * 0.2;
-          fadeStartAttr.setX(index, fadeStart);
-
-          const fadeLengthMax = 0.95 - fadeStart;
-          const fadeLength = Math.max(
-            0.3,
-            Math.min(fadeLengthMax, 0.3 + Math.random() * 0.4)
-          );
-          fadeLengthAttr.setX(index, fadeLength);
-
-          // Set particle scale - varies with frequency and amplitude
-          // Smaller particles for more defined appearance
-          let scale;
-          if (band.type === "high" && isBeat) {
-            scale = 0.4 + (1.0 - freqValue) * 0.4 + Math.random() * 0.3; // Reduced from 0.6/0.6/0.5 to 0.4/0.4/0.3
-          } else {
-            scale = 0.3 + (1.0 - freqValue) * 0.3 + Math.random() * 0.2; // Reduced from 0.5/0.5/0.4 to 0.3/0.3/0.2
-          }
-          scaleAttr.setX(index, scale);
-
-          // Set turbulence factor - increased for more floating movement
-          let turbulenceFactor;
-          if (band.type === "high" && isBeat) {
-            turbulenceFactor = 0.3 + Math.random() * 0.4; // Increased from 0.1/0.15 to 0.3/0.4
-          } else {
-            turbulenceFactor = 0.2 + Math.random() * 0.3; // Increased from 0.05/0.1 to 0.2/0.3
-          }
-          turbulenceAttr.setX(index, turbulenceFactor);
-
-          // Set band identifier (0=low, 1=mid, 2=high)
-          let bandValue;
-          switch (band.type) {
-            case "low":
-              bandValue = 0.0;
-              break;
-            case "mid":
-              bandValue = 1.0;
-              break;
-            case "high":
-              bandValue = 2.0;
-              break;
-            default:
-              bandValue = 0.0;
-          }
-
-          bandAttr.setX(index, bandValue);
-
-          // Set particle to active and record burst time
-          activeAttr.setX(index, 1);
-          burstTimeAttr.setX(index, time);
-
-          activeParticlesRef.current++;
-        }
+        particlesActivated++;
       }
     }
 
     // Update buffers
-    positionAttr.needsUpdate = true;
-    velocityAttr.needsUpdate = true;
-    activeAttr.needsUpdate = true;
-    burstTimeAttr.needsUpdate = true;
-    colorAttr.needsUpdate = true;
-    rotationAttr.needsUpdate = true;
-    lifetimeAttr.needsUpdate = true;
-    fadeStartAttr.needsUpdate = true;
-    fadeLengthAttr.needsUpdate = true;
-    scaleAttr.needsUpdate = true;
-    turbulenceAttr.needsUpdate = true;
-    bandAttr.needsUpdate = true;
+    if (particlesActivated > 0) {
+      positionAttr.needsUpdate = true;
+      velocityAttr.needsUpdate = true;
+      initialVelocityAttr.needsUpdate = true;
+      activeAttr.needsUpdate = true;
+      burstTimeAttr.needsUpdate = true;
+      colorAttr.needsUpdate = true;
+      rotationAttr.needsUpdate = true;
+      lifetimeAttr.needsUpdate = true;
+      fadeStartAttr.needsUpdate = true;
+      fadeLengthAttr.needsUpdate = true;
+      turbulenceAttr.needsUpdate = true;
+      bandAttr.needsUpdate = true;
+
+      // Update active particle count
+      activeParticlesRef.current += particlesActivated;
+    }
   };
 
-  // Update animation and audio reactivity with optimizations
-  useFrame((state) => {
+  // Update the emitParticleBurst function to create a more dramatic plume
+  const emitParticleBurst = (
+    count: number,
+    currentTime: number,
+    frequencyBands: number[]
+  ) => {
     if (
       !pointsRef.current ||
-      !audioData ||
       !activeArray ||
       !burstTimeArray ||
       !colorArray ||
@@ -1039,80 +878,207 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       !lifetimeArray ||
       !fadeStartArray ||
       !fadeLengthArray ||
-      !turbulenceArray
+      !turbulenceArray ||
+      !bandArray ||
+      !initialVelocityArray
     )
       return;
 
+    const geometry = pointsRef.current.geometry;
+    const activeAttr = geometry.getAttribute(
+      "aActive"
+    ) as THREE.BufferAttribute;
+    const burstTimeAttr = geometry.getAttribute(
+      "aBurstTime"
+    ) as THREE.BufferAttribute;
+    const colorAttr = geometry.getAttribute("aColor") as THREE.BufferAttribute;
+    const rotationAttr = geometry.getAttribute(
+      "aRotation"
+    ) as THREE.BufferAttribute;
+    const lifetimeAttr = geometry.getAttribute(
+      "aLifetime"
+    ) as THREE.BufferAttribute;
+    const fadeStartAttr = geometry.getAttribute(
+      "aFadeStart"
+    ) as THREE.BufferAttribute;
+    const fadeLengthAttr = geometry.getAttribute(
+      "aFadeLength"
+    ) as THREE.BufferAttribute;
+    const turbulenceAttr = geometry.getAttribute(
+      "aTurbulence"
+    ) as THREE.BufferAttribute;
+    const bandAttr = geometry.getAttribute("aBand") as THREE.BufferAttribute;
+    const initialVelocityAttr = geometry.getAttribute(
+      "aInitialVelocity"
+    ) as THREE.BufferAttribute;
+
+    // Find inactive particles to reuse
+    let particlesActivated = 0;
+    for (let i = 0; i < particleCount && particlesActivated < count; i++) {
+      if (activeAttr.getX(i) < 0.5) {
+        // Activate this particle
+        activeAttr.setX(i, 1.0);
+        burstTimeAttr.setX(i, currentTime);
+
+        // Set initial position - concentrated more in the center for a plume effect
+        // Use a tighter distribution for more focused plume
+        const radius = Math.random() * 3; // Reduced from 6 to 3 for tighter plume
+        const angle = Math.random() * Math.PI * 2;
+        const posX = Math.cos(angle) * radius;
+        const posZ = Math.sin(angle) * radius;
+        const posY = 0.05; // Slightly above the plane to avoid z-fighting
+
+        // Set position
+        const positionAttr = geometry.getAttribute(
+          "position"
+        ) as THREE.BufferAttribute;
+        positionAttr.setXYZ(i, posX, posY, posZ);
+
+        // Set initial velocity - much stronger upward velocity for dramatic plume
+        const velocityAttr = geometry.getAttribute(
+          "aVelocity"
+        ) as THREE.BufferAttribute;
+
+        // Even stronger upward velocity for beat particles
+        const upwardVelocity = 1.2 + Math.random() * 1.2; // Increased from 1.0-2.0 to 1.2-2.4
+
+        // Less outward spread for a more focused column
+        const outwardFactor = 0.1 + Math.random() * 0.2;
+
+        // Calculate outward direction
+        const dirX = posX === 0 ? Math.random() - 0.5 : Math.sign(posX);
+        const dirZ = posZ === 0 ? Math.random() - 0.5 : Math.sign(posZ);
+
+        // Create velocity vector
+        const vx = dirX * outwardFactor;
+        const vy = upwardVelocity;
+        const vz = dirZ * outwardFactor;
+
+        // Set both velocity and initial velocity
+        velocityAttr.setXYZ(i, vx, vy, vz);
+        initialVelocityAttr.setXYZ(i, vx, vy, vz);
+
+        // Set color based on frequency bands - brighter colors for beat particles
+        const bandType = ["low", "mid", "high"][
+          Math.floor(Math.random() * 3)
+        ] as "low" | "mid" | "high";
+        const [r, g, b] = getColorFromFrequencyBands(frequencyBands, bandType);
+
+        // Make beat particles brighter
+        const brightness = 1.8; // Increased from 1.5 to 1.8 for even more visible beat particles
+        colorAttr.setXYZ(i, r * brightness, g * brightness, b * brightness);
+
+        // Set random rotation
+        rotationAttr.setX(i, Math.random() * Math.PI * 2);
+
+        // Longer lifetime for beat particles to create a lasting plume
+        const lifetime = 3.0 + Math.random() * 2.0;
+        lifetimeAttr.setX(i, lifetime);
+
+        // Set fade parameters - slower fade for more visible plume
+        const fadeStart = 0.8;
+        const fadeLength = 0.2;
+        fadeStartAttr.setX(i, fadeStart);
+        fadeLengthAttr.setX(i, fadeLength);
+
+        // Set turbulence factor - less turbulence for more coherent plume
+        const turbulence = 0.2 + Math.random() * 0.3;
+        turbulenceAttr.setX(i, turbulence);
+
+        // Set frequency band influence
+        const bandInfluence = Math.floor(Math.random() * 3); // 0=bass, 1=mid, 2=high
+        bandAttr.setX(i, bandInfluence);
+
+        particlesActivated++;
+      }
+    }
+
+    // Mark attributes as needing update
+    geometry.getAttribute("position").needsUpdate = true;
+    geometry.getAttribute("aVelocity").needsUpdate = true;
+    initialVelocityAttr.needsUpdate = true;
+    activeAttr.needsUpdate = true;
+    burstTimeAttr.needsUpdate = true;
+    colorAttr.needsUpdate = true;
+    rotationAttr.needsUpdate = true;
+    lifetimeAttr.needsUpdate = true;
+    fadeStartAttr.needsUpdate = true;
+    fadeLengthAttr.needsUpdate = true;
+    turbulenceAttr.needsUpdate = true;
+    bandAttr.needsUpdate = true;
+
+    // Update active particle count
+    activeParticlesRef.current += particlesActivated;
+  };
+
+  // Update useFrame to handle beat detection and particle emission
+  useFrame(({ clock, camera, controls }) => {
+    if (!pointsRef.current || !activeArray || !audioData) return;
+
+    const currentTime = clock.getElapsedTime();
+    const deltaTime = Math.min(clock.getDelta(), 0.1);
+
     // Update time uniform
-    const currentTime = state.clock.elapsedTime;
-    uniforms.uTime.value = currentTime;
+    if (uniforms && uniforms.uTime) {
+      uniforms.uTime.value = currentTime;
+    }
 
     // Only proceed if audio is playing
     if (!isPlaying) return;
 
-    // Calculate average audio intensity from all frequencies for overall amplitude
-    let totalSum = 0;
-    const totalSamples = Math.min(64, audioData.length);
+    // Process audio data
+    const audioAmplitude = calculateAudioAmplitude(audioData);
+    lastAudioAmplitudeRef.current = audioAmplitude;
 
-    // Safely access audioData
-    if (audioData && audioData.length > 0) {
-      for (let i = 0; i < totalSamples; i++) {
-        totalSum += audioData[i] / 255;
-      }
-      const audioAmplitude = totalSum / totalSamples;
+    // Analyze frequency bands
+    const bands = analyzeFrequencyBands(audioData);
 
-      // Analyze frequency bands
-      const bands = analyzeFrequencyBands(audioData);
-      frequencyBandsRef.current = bands;
+    // Check for beat using the centralized beat detection from AudioContext
+    if (onBeat && currentTime - lastBeatTimeRef.current > 0.1) {
+      lastBeatTimeRef.current = currentTime;
+      beatActiveRef.current = true;
+      beatDecayRef.current = 1.0; // Full beat intensity
 
-      // Update audio data uniform for all particles to react to
-      uniforms.uAudioData.value.set(bands[0], bands[1], bands[2]);
-
-      // Detect beats (particularly snare hits)
-      const isBeat = detectBeat(audioData, currentTime);
-      if (isBeat) {
-        beatActiveRef.current = true;
-      }
-
-      // Update beat decay
-      if (beatDecayRef.current > 0) {
-        beatDecayRef.current = Math.max(
-          0,
-          beatDecayRef.current - beatDecayRateRef.current
-        );
-        if (beatDecayRef.current === 0) {
-          beatActiveRef.current = false;
-        }
-      }
-
-      // Continuous emission logic - emit particles at regular intervals
-      // Reduced emission frequency for fewer particles
-      const dynamicInterval = Math.max(0.1, 0.2 - audioAmplitude * 0.1); // Increased from 0.05/0.15 to 0.1/0.2
-
-      if (
-        currentTime - lastContinuousEmissionTimeRef.current >=
-          dynamicInterval &&
-        audioAmplitude > 0.01
-      ) {
-        // Create continuous emission with any detectable audio
-        createContinuousEmission(
-          currentTime,
-          audioAmplitude,
-          bands,
-          beatActiveRef.current || beatDecayRef.current > 0
-        );
-
-        // Update last emission time
-        lastContinuousEmissionTimeRef.current = currentTime;
-      }
-
-      // Update last amplitude
-      lastAudioAmplitudeRef.current = audioAmplitude;
+      // Emit a MUCH larger burst of particles on beat for obvious plume effect
+      emitParticleBurst(
+        Math.floor(100 + audioAmplitude * 150), // Dramatically increased from 50+70 to 100+150
+        currentTime,
+        bands
+      );
     }
 
-    // Clean up old particles more frequently
+    // Update beat decay
+    if (beatDecayRef.current > 0) {
+      beatDecayRef.current = Math.max(
+        0,
+        beatDecayRef.current - beatDecayRateRef.current
+      );
+      if (beatDecayRef.current === 0) {
+        beatActiveRef.current = false;
+      }
+    }
+
+    // Continuous emission based on audio amplitude - minimal when not on beat
+    // Force emission on the first few frames after playback starts
+    const forceEmission = lastContinuousEmissionTimeRef.current === 0;
+
+    if (
+      isPlaying &&
+      (forceEmission ||
+        currentTime - lastContinuousEmissionTimeRef.current >
+          continuousEmissionIntervalRef.current)
+    ) {
+      lastContinuousEmissionTimeRef.current = currentTime;
+
+      // Emit particles continuously based on audio amplitude - even fewer particles when not on beat
+      // Ensure at least 1 particle is emitted when audio is playing to maintain visual feedback
+      const particlesToEmit = Math.max(1, Math.floor(audioAmplitude * 2));
+      createContinuousEmission(currentTime, audioAmplitude, bands);
+    }
+
+    // Clean up old particles
     if (currentTime % 0.5 < 0.01) {
-      // Every ~0.5 second instead of 1 second
+      // Every ~0.5 second
       const activeAttr = pointsRef.current.geometry.getAttribute(
         "aActive"
       ) as THREE.BufferAttribute;
@@ -1148,6 +1114,70 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     };
   }, [cleanupResources]);
 
+  // Reset state when audio track changes
+  useEffect(() => {
+    if (currentAudioFile) {
+      // Reset beat detection state
+      lastBeatTimeRef.current = 0;
+      beatActiveRef.current = false;
+      beatDecayRef.current = 0;
+
+      // Reset audio processing state
+      lastAudioAmplitudeRef.current = 0;
+      frequencyBandsRef.current = [0, 0, 0];
+      lastContinuousEmissionTimeRef.current = 0;
+
+      // Reset all particles if the geometry exists
+      if (pointsRef.current) {
+        const geometry = pointsRef.current.geometry;
+        const activeAttr = geometry.getAttribute(
+          "aActive"
+        ) as THREE.BufferAttribute;
+
+        // Deactivate all particles
+        for (let i = 0; i < particleCount; i++) {
+          activeAttr.setX(i, 0);
+        }
+
+        activeAttr.needsUpdate = true;
+        activeParticlesRef.current = 0;
+      }
+    }
+  }, [currentAudioFile, particleCount]);
+
+  // Update the useEffect for audio playback state changes
+  useEffect(() => {
+    if (isPlaying) {
+      // Reset beat detection when playback starts/resumes
+      lastBeatTimeRef.current = 0;
+      beatActiveRef.current = false;
+      beatDecayRef.current = 0;
+
+      // Reset continuous emission timer to ensure particles start emitting immediately
+      lastContinuousEmissionTimeRef.current = 0;
+
+      // Force an immediate emission of some particles when playback resumes
+      if (pointsRef.current && audioData) {
+        const currentTime = performance.now() / 1000; // Current time in seconds
+        const amplitude = calculateAudioAmplitude(audioData);
+        const bands = analyzeFrequencyBands(audioData);
+
+        // Emit a small burst of particles to show playback has resumed
+        setTimeout(() => {
+          emitParticleBurst(
+            Math.floor(20 + amplitude * 30), // Smaller initial burst
+            currentTime,
+            bands
+          );
+        }, 100); // Small delay to ensure everything is initialized
+      }
+    } else {
+      // Reset beat detection when playback stops
+      beatActiveRef.current = false;
+      beatDecayRef.current = 0;
+    }
+  }, [isPlaying, audioData]);
+
   // Don't render until arrays are initialized
   if (
     !activeArray ||
@@ -1159,13 +1189,14 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     !fadeLengthArray ||
     !turbulenceArray ||
     !bandArray ||
+    !initialVelocityArray ||
     !smokeTexture
   )
     return null;
 
   return (
     <>
-      {/* Emission plane */}
+      {/* Static and invisible emission plane */}
       <EmissionPlane />
 
       {/* Particle system */}
@@ -1176,91 +1207,84 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
             count={particleCount}
             array={positions}
             itemSize={3}
-            args={[positions, 3]}
           />
           <bufferAttribute
             attach="attributes-aScale"
             count={particleCount}
             array={scales}
             itemSize={1}
-            args={[scales, 1]}
           />
           <bufferAttribute
             attach="attributes-aOffset"
             count={particleCount}
             array={offsets}
             itemSize={1}
-            args={[offsets, 1]}
           />
           <bufferAttribute
             attach="attributes-aVelocity"
             count={particleCount}
             array={velocities}
             itemSize={3}
-            args={[velocities, 3]}
+          />
+          <bufferAttribute
+            attach="attributes-aInitialVelocity"
+            count={particleCount}
+            array={initialVelocityArray}
+            itemSize={3}
           />
           <bufferAttribute
             attach="attributes-aActive"
             count={particleCount}
             array={activeArray}
             itemSize={1}
-            args={[activeArray, 1]}
           />
           <bufferAttribute
             attach="attributes-aBurstTime"
             count={particleCount}
             array={burstTimeArray}
             itemSize={1}
-            args={[burstTimeArray, 1]}
           />
           <bufferAttribute
             attach="attributes-aColor"
             count={particleCount}
             array={colorArray}
             itemSize={3}
-            args={[colorArray, 3]}
           />
           <bufferAttribute
             attach="attributes-aRotation"
             count={particleCount}
             array={rotationArray}
             itemSize={1}
-            args={[rotationArray, 1]}
           />
           <bufferAttribute
             attach="attributes-aLifetime"
             count={particleCount}
             array={lifetimeArray}
             itemSize={1}
-            args={[lifetimeArray, 1]}
           />
           <bufferAttribute
             attach="attributes-aFadeStart"
             count={particleCount}
             array={fadeStartArray}
             itemSize={1}
-            args={[fadeStartArray, 1]}
           />
           <bufferAttribute
             attach="attributes-aFadeLength"
             count={particleCount}
             array={fadeLengthArray}
             itemSize={1}
-            args={[fadeLengthArray, 1]}
           />
           <bufferAttribute
             attach="attributes-aTurbulence"
             count={particleCount}
             array={turbulenceArray}
             itemSize={1}
-            args={[turbulenceArray, 1]}
           />
           <bufferAttribute
             attach="attributes-aBand"
             count={particleCount}
             array={bandArray}
             itemSize={1}
-            args={[bandArray, 1]}
           />
         </bufferGeometry>
         <shaderMaterial

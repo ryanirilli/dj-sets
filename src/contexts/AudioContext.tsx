@@ -229,6 +229,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const checkForBeat = useCallback((currentTime: number) => {
     if (beatIntervalRef.current <= 0) return false;
 
+    // If this is the first beat after starting/resuming playback
+    if (lastBeatTimeRef.current === 0) {
+      // Set the first beat time
+      lastBeatTimeRef.current = currentTime;
+      setBeatTime(currentTime);
+      return true;
+    }
+
     // Calculate time since last beat
     const timeSinceLastBeat = currentTime - lastBeatTimeRef.current;
 
@@ -241,6 +249,33 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       lastBeatTimeRef.current = currentTime;
       setBeatTime(currentTime);
       return true;
+    }
+
+    // If we've somehow missed several beats (e.g., after a pause),
+    // realign to the beat grid
+    if (timeSinceLastBeat > beatIntervalRef.current * 2) {
+      // Calculate how many beats we've missed
+      const missedBeats = Math.floor(
+        timeSinceLastBeat / beatIntervalRef.current
+      );
+
+      // Adjust the last beat time to maintain the beat grid
+      lastBeatTimeRef.current =
+        currentTime -
+        (timeSinceLastBeat - missedBeats * beatIntervalRef.current);
+
+      // Check if we're now on a beat
+      const adjustedTimeSinceLastBeat = currentTime - lastBeatTimeRef.current;
+      if (
+        adjustedTimeSinceLastBeat >=
+          beatIntervalRef.current - beatToleranceRef.current &&
+        adjustedTimeSinceLastBeat <=
+          beatIntervalRef.current + beatToleranceRef.current
+      ) {
+        lastBeatTimeRef.current = currentTime;
+        setBeatTime(currentTime);
+        return true;
+      }
     }
 
     return false;
@@ -276,7 +311,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
         // Peak detection
         const currentTimeSeconds = audioContextRef.current?.currentTime || 0;
+
+        // Only detect peaks if we have a valid previous energy reading
+        // This prevents false peaks when resuming from pause
         const isPeak =
+          lastBassEnergyRef.current > 0 && // Ensure we have a previous reading
           bassEnergy > peakThresholdRef.current && // Above threshold
           bassEnergy > lastBassEnergyRef.current * 1.2 && // 20% increase from last frame
           currentTimeSeconds >
@@ -313,9 +352,37 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     animationFrameRef.current = requestAnimationFrame(updateAudioData);
   }, [analyzePeakIntervals, checkForBeat]);
 
+  // Reset beat detection function to use when playback state changes
+  const resetBeatDetection = useCallback(
+    (maintainBPM = true) => {
+      // Store the current BPM if we want to maintain it
+      const previousBPM = maintainBPM ? bpm : 0;
+
+      // Reset all beat detection state
+      peaksRef.current = [];
+      lastPeakTimeRef.current = 0;
+      lastBeatTimeRef.current = 0;
+      lastBassEnergyRef.current = 0;
+
+      // If we have a valid BPM and want to maintain it, keep the beat interval
+      if (previousBPM > 0) {
+        beatIntervalRef.current = 60 / previousBPM;
+      } else {
+        // Otherwise reset to default (120 BPM)
+        beatIntervalRef.current = 0.5;
+      }
+    },
+    [bpm]
+  );
+
   // Start animation when playing
   useEffect(() => {
     if (isPlaying) {
+      // If we're starting playback, ensure we have a clean state for beat detection
+      if (!animationFrameRef.current) {
+        // Reset beat detection but maintain the BPM
+        resetBeatDetection(true);
+      }
       updateAudioData();
     } else if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -328,7 +395,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         animationFrameRef.current = undefined;
       }
     };
-  }, [isPlaying, updateAudioData]);
+  }, [isPlaying, updateAudioData, resetBeatDetection]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -382,6 +449,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setupAudioAnalyser();
       }
 
+      // Reset beat detection but maintain the BPM when resuming playback
+      resetBeatDetection(true);
+
       audioRef.current.play().catch((error) => {
         console.error("Error playing audio:", error);
         // Log more details about the audio element
@@ -399,6 +469,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     initializeAudioContext,
     setupAudioAnalyser,
     resumeAudioContext,
+    resetBeatDetection,
   ]);
 
   const setAudioFile = useCallback(

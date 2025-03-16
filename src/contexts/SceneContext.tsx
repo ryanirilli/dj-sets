@@ -22,6 +22,30 @@ const ForceRender = () => {
   return null;
 };
 
+// Component to manage orbit controls auto-rotation
+const AutoRotateManager = ({ autoRotate }: { autoRotate: boolean }) => {
+  const { scene } = useThree();
+
+  useFrame(() => {
+    // Find the OrbitControls instance in the scene
+    const orbitControls = scene.userData.controls;
+
+    if (orbitControls) {
+      // Set the autoRotate property directly
+      orbitControls.autoRotate = autoRotate;
+    }
+
+    // Find all OrbitControls instances in the scene
+    scene.traverse((object) => {
+      if (object.userData && object.userData.controls) {
+        object.userData.controls.autoRotate = autoRotate;
+      }
+    });
+  });
+
+  return null;
+};
+
 interface SceneProviderProps {
   children: ReactNode;
   sceneContent?: ReactNode;
@@ -115,6 +139,7 @@ interface SceneContextType {
   autoRotateColors: boolean;
   setAutoRotateColors: (value: boolean) => void;
   transitionProgress: number; // Add transition progress
+  toggleAutoRotate: () => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -127,6 +152,7 @@ const SceneContext = createContext<SceneContextType>({
   autoRotateColors: true,
   setAutoRotateColors: () => {},
   transitionProgress: 0,
+  toggleAutoRotate: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -144,6 +170,20 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const colorRotationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const transitionFrameRef = useRef<number | null>(null);
   const lastTransitionTimeRef = useRef<number>(0);
+
+  // Debug auto-rotate state
+  useEffect(() => {
+    console.log("Auto-rotate state changed:", autoRotate);
+  }, [autoRotate]);
+
+  // Function to toggle auto-rotation
+  const toggleAutoRotate = useCallback(() => {
+    setAutoRotate((prev) => {
+      const newValue = !prev;
+      console.log("Toggling auto-rotate to:", newValue);
+      return newValue;
+    });
+  }, []);
 
   // Create a transitioning palette by interpolating between current and next
   const getTransitioningPalette = useCallback((): ColorPalette => {
@@ -291,6 +331,16 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     };
   }, []);
 
+  // Ensure auto-rotation is properly initialized
+  useEffect(() => {
+    // Force auto-rotation to be enabled on mount
+    setAutoRotate(true);
+
+    return () => {
+      // Clean up any resources
+    };
+  }, []);
+
   return (
     <SceneContext.Provider
       value={{
@@ -303,6 +353,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
         autoRotateColors,
         setAutoRotateColors,
         transitionProgress,
+        toggleAutoRotate,
       }}
     >
       <div className="absolute inset-0 flex flex-col w-full h-full">
@@ -351,6 +402,9 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               enableDamping={true}
               dampingFactor={0.05}
             />
+
+            {/* Add the auto-rotate manager to ensure the controls are updated */}
+            <AutoRotateManager autoRotate={autoRotate} />
 
             {/* Add a grid helper for debugging */}
             {showGrid && (
