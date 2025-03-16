@@ -70,6 +70,40 @@ const SceneLighting = () => {
   );
 };
 
+// Helper function to interpolate between two colors
+const interpolateColor = (
+  color1: string,
+  color2: string,
+  factor: number
+): string => {
+  // Convert hex to rgb
+  const hex2rgb = (hex: string): [number, number, number] => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return [r, g, b];
+  };
+
+  // Convert rgb to hex
+  const rgb2hex = (r: number, g: number, b: number): string => {
+    return (
+      "#" +
+      Math.round(r).toString(16).padStart(2, "0") +
+      Math.round(g).toString(16).padStart(2, "0") +
+      Math.round(b).toString(16).padStart(2, "0")
+    );
+  };
+
+  const [r1, g1, b1] = hex2rgb(color1);
+  const [r2, g2, b2] = hex2rgb(color2);
+
+  const r = r1 + factor * (r2 - r1);
+  const g = g1 + factor * (g2 - g1);
+  const b = b1 + factor * (b2 - b1);
+
+  return rgb2hex(r, g, b);
+};
+
 // Create a context to manage auto-rotation state
 interface SceneContextType {
   autoRotate: boolean;
@@ -80,6 +114,7 @@ interface SceneContextType {
   setColorPalette: (paletteId: string) => void;
   autoRotateColors: boolean;
   setAutoRotateColors: (value: boolean) => void;
+  transitionProgress: number; // Add transition progress
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -91,6 +126,7 @@ const SceneContext = createContext<SceneContextType>({
   setColorPalette: () => {},
   autoRotateColors: true,
   setAutoRotateColors: () => {},
+  transitionProgress: 0,
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -102,18 +138,104 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const [colorPalette, setColorPaletteState] = useState<ColorPalette>(
     getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette
   );
+  const [nextPalette, setNextPalette] = useState<ColorPalette | null>(null);
+  const [transitionProgress, setTransitionProgress] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const colorRotationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const transitionFrameRef = useRef<number | null>(null);
+  const lastTransitionTimeRef = useRef<number>(0);
 
-  const setColorPalette = useCallback((paletteId: string) => {
-    const palette = getColorPaletteById(paletteId);
-    if (palette) {
-      setColorPaletteState(palette);
+  // Create a transitioning palette by interpolating between current and next
+  const getTransitioningPalette = useCallback((): ColorPalette => {
+    if (!nextPalette || !isTransitioning) return colorPalette;
+
+    const interpolatedColors: [string, string, string, string] = [
+      interpolateColor(
+        colorPalette.colors[0],
+        nextPalette.colors[0],
+        transitionProgress
+      ),
+      interpolateColor(
+        colorPalette.colors[1],
+        nextPalette.colors[1],
+        transitionProgress
+      ),
+      interpolateColor(
+        colorPalette.colors[2],
+        nextPalette.colors[2],
+        transitionProgress
+      ),
+      interpolateColor(
+        colorPalette.colors[3],
+        nextPalette.colors[3],
+        transitionProgress
+      ),
+    ];
+
+    return {
+      ...colorPalette,
+      colors: interpolatedColors,
+    };
+  }, [colorPalette, nextPalette, transitionProgress, isTransitioning]);
+
+  // Modified setColorPalette to handle transitions
+  const setColorPalette = useCallback(
+    (paletteId: string) => {
+      const palette = getColorPaletteById(paletteId);
+      if (palette) {
+        if (autoRotateColors) {
+          // Start transition to new palette
+          setNextPalette(palette);
+          setIsTransitioning(true);
+          setTransitionProgress(0);
+        } else {
+          // Immediate change if auto-rotate is off
+          setColorPaletteState(palette);
+        }
+      }
+    },
+    [autoRotateColors]
+  );
+
+  // Animation loop for smooth transitions
+  useEffect(() => {
+    if (isTransitioning && nextPalette) {
+      const animateTransition = (timestamp: number) => {
+        if (!lastTransitionTimeRef.current) {
+          lastTransitionTimeRef.current = timestamp;
+        }
+
+        const elapsed = timestamp - lastTransitionTimeRef.current;
+        const duration = 1000; // 1 second transition
+        const progress = Math.min(elapsed / duration, 1);
+
+        setTransitionProgress(progress);
+
+        if (progress < 1) {
+          transitionFrameRef.current = requestAnimationFrame(animateTransition);
+        } else {
+          // Transition complete
+          setColorPaletteState(nextPalette);
+          setNextPalette(null);
+          setIsTransitioning(false);
+          setTransitionProgress(0);
+          lastTransitionTimeRef.current = 0;
+        }
+      };
+
+      transitionFrameRef.current = requestAnimationFrame(animateTransition);
+
+      return () => {
+        if (transitionFrameRef.current) {
+          cancelAnimationFrame(transitionFrameRef.current);
+        }
+      };
     }
-  }, []);
+  }, [isTransitioning, nextPalette]);
 
   // Handle auto color palette rotation
   useEffect(() => {
-    if (autoRotateColors) {
+    if (autoRotateColors && !isTransitioning) {
       const palettes = getColorPalettes();
 
       // Set up interval to change color palette
@@ -122,7 +244,12 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
           (p) => p.id === colorPalette.id
         );
         const nextIndex = (currentIndex + 1) % palettes.length;
-        setColorPaletteState(palettes[nextIndex]);
+        const nextPalette = palettes[nextIndex];
+
+        // Start transition to next palette
+        setNextPalette(nextPalette);
+        setIsTransitioning(true);
+        setTransitionProgress(0);
       }, 5000); // Change every 5 seconds
     } else {
       // Clear interval when auto-rotation is turned off
@@ -137,8 +264,16 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
       if (colorRotationIntervalRef.current) {
         clearInterval(colorRotationIntervalRef.current);
       }
+      if (transitionFrameRef.current) {
+        cancelAnimationFrame(transitionFrameRef.current);
+      }
     };
-  }, [autoRotateColors, colorPalette.id]);
+  }, [autoRotateColors, colorPalette.id, isTransitioning]);
+
+  // Get the current palette (either static or transitioning)
+  const displayPalette = isTransitioning
+    ? getTransitioningPalette()
+    : colorPalette;
 
   // Log when scene content changes
   useEffect(() => {
@@ -163,10 +298,11 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
         setAutoRotate,
         showGrid,
         setShowGrid,
-        colorPalette,
+        colorPalette: displayPalette,
         setColorPalette,
         autoRotateColors,
         setAutoRotateColors,
+        transitionProgress,
       }}
     >
       <div className="absolute inset-0 flex flex-col w-full h-full">
