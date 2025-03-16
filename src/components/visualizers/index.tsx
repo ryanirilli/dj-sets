@@ -1,6 +1,7 @@
 import React from "react";
 import dynamic from "next/dynamic";
-import { registerVisualizer, VisualizerProps } from "@/types/visualizers";
+import { VisualizerProps } from "@/types/visualizers";
+import { registerVisualizer } from "@/lib/visualizer-registry";
 
 // Loading component that doesn't use JSX directly in the dynamic import
 const LoadingComponent = ({ name }: { name: string }) => {
@@ -8,13 +9,13 @@ const LoadingComponent = ({ name }: { name: string }) => {
 };
 
 // Import visualizers with dynamic import to avoid SSR issues with Web Audio API
-const AudioBars = dynamic(() => import("@/visualizers/components/AudioBars"), {
+const AudioBars = dynamic(() => import("@/components/visualizers/AudioBars"), {
   ssr: false,
   loading: () => <LoadingComponent name="AudioBars" />,
 }) as React.ComponentType<VisualizerProps>;
 
 const WaveformBars = dynamic(
-  () => import("@/visualizers/components/WaveformBars"),
+  () => import("@/components/visualizers/WaveformBars"),
   {
     ssr: false,
     loading: () => <LoadingComponent name="WaveformBars" />,
@@ -22,10 +23,18 @@ const WaveformBars = dynamic(
 ) as React.ComponentType<VisualizerProps>;
 
 const SmokeVisualizer = dynamic(
-  () => import("@/visualizers/components/SmokeVisualizer"),
+  () => import("@/components/visualizers/SmokeVisualizer"),
   {
     ssr: false,
     loading: () => <LoadingComponent name="SmokeVisualizer" />,
+  }
+) as React.ComponentType<VisualizerProps>;
+
+const IcosahedronVisualizer = dynamic(
+  () => import("@/components/visualizers/IcosahedronVisualizer"),
+  {
+    ssr: false,
+    loading: () => <LoadingComponent name="IcosahedronVisualizer" />,
   }
 ) as React.ComponentType<VisualizerProps>;
 
@@ -55,6 +64,14 @@ export function registerAllVisualizers() {
     description: "Smoke particles that react to music",
   });
 
+  // Register icosahedron visualizer
+  registerVisualizer({
+    id: "icosahedron",
+    name: "Icosahedron",
+    component: IcosahedronVisualizer,
+    description: "Audio-reactive icosahedron with wireframe gradient",
+  });
+
   // You can add more visualizers here
   // Example:
   // registerVisualizer({
@@ -66,4 +83,4 @@ export function registerAllVisualizers() {
 }
 
 // Export dynamic components for direct use if needed
-export { AudioBars, WaveformBars, SmokeVisualizer };
+export { AudioBars, WaveformBars, SmokeVisualizer, IcosahedronVisualizer };

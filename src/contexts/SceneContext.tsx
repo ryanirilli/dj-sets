@@ -7,6 +7,7 @@ import {
   ColorPalette,
   DEFAULT_PALETTE_ID,
   getColorPaletteById,
+  getColorPalettes,
 } from "@/types/colorPalettes";
 import { useAudio } from "./AudioContext";
 
@@ -77,25 +78,31 @@ interface SceneContextType {
   setShowGrid: (value: boolean) => void;
   colorPalette: ColorPalette;
   setColorPalette: (paletteId: string) => void;
+  autoRotateColors: boolean;
+  setAutoRotateColors: (value: boolean) => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
   autoRotate: true,
   setAutoRotate: () => {},
-  showGrid: true,
+  showGrid: false,
   setShowGrid: () => {},
   colorPalette: getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette,
   setColorPalette: () => {},
+  autoRotateColors: true,
+  setAutoRotateColors: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
 
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const [autoRotate, setAutoRotate] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
+  const [autoRotateColors, setAutoRotateColors] = useState(true);
   const [colorPalette, setColorPaletteState] = useState<ColorPalette>(
     getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette
   );
+  const colorRotationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const setColorPalette = useCallback((paletteId: string) => {
     const palette = getColorPaletteById(paletteId);
@@ -103,6 +110,35 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
       setColorPaletteState(palette);
     }
   }, []);
+
+  // Handle auto color palette rotation
+  useEffect(() => {
+    if (autoRotateColors) {
+      const palettes = getColorPalettes();
+
+      // Set up interval to change color palette
+      colorRotationIntervalRef.current = setInterval(() => {
+        const currentIndex = palettes.findIndex(
+          (p) => p.id === colorPalette.id
+        );
+        const nextIndex = (currentIndex + 1) % palettes.length;
+        setColorPaletteState(palettes[nextIndex]);
+      }, 5000); // Change every 5 seconds
+    } else {
+      // Clear interval when auto-rotation is turned off
+      if (colorRotationIntervalRef.current) {
+        clearInterval(colorRotationIntervalRef.current);
+        colorRotationIntervalRef.current = null;
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (colorRotationIntervalRef.current) {
+        clearInterval(colorRotationIntervalRef.current);
+      }
+    };
+  }, [autoRotateColors, colorPalette.id]);
 
   // Log when scene content changes
   useEffect(() => {
@@ -129,6 +165,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
         setShowGrid,
         colorPalette,
         setColorPalette,
+        autoRotateColors,
+        setAutoRotateColors,
       }}
     >
       <div className="absolute inset-0 flex flex-col w-full h-full">

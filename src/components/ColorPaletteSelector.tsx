@@ -28,15 +28,15 @@ const ColorPaletteSelector = () => {
               <div className="flex-1 text-left text-sm font-medium text-white/90 mb-2">
                 {palette.name}
               </div>
-              <div className="w-full h-6 rounded-md overflow-hidden flex">
-                {palette.colors.map((color, index) => (
-                  <div
-                    key={index}
-                    className="flex-1 h-full"
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
+              <div
+                className="w-full h-6 rounded-md overflow-hidden"
+                style={{
+                  background: `linear-gradient(to right, ${palette.colors.join(
+                    ", "
+                  )})`,
+                  boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
+                }}
+              />
               <div className="text-xs text-white/50 mt-2 text-left">
                 {palette.description}
               </div>

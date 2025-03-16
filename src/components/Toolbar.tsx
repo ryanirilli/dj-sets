@@ -3,7 +3,8 @@ import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
 import AudioSelectorShadcn from "./AudioSelectorShadcn";
 import ColorPaletteSelector from "./ColorPaletteSelector";
-import { VisualizerType, getVisualizers } from "@/types/visualizers";
+import { VisualizerType } from "@/types/visualizers";
+import { getVisualizers } from "@/lib/visualizer-registry";
 import {
   Popover,
   PopoverContent,
@@ -31,8 +32,14 @@ export const Toolbar = ({
     duration,
     audioRef,
   } = useAudio();
-  const { autoRotate, setAutoRotate, showGrid, setShowGrid } =
-    useSceneContext();
+  const {
+    autoRotate,
+    setAutoRotate,
+    showGrid,
+    setShowGrid,
+    autoRotateColors,
+    setAutoRotateColors,
+  } = useSceneContext();
   const visualizers = getVisualizers();
   const progressRef = useRef<HTMLDivElement>(null);
 
@@ -228,8 +235,26 @@ export const Toolbar = ({
                           : "max-h-0 opacity-0"
                       }`}
                     >
-                      <div className="pt-2 h-64 px-4">
-                        <ColorPaletteSelector />
+                      <div className="flex flex-col space-y-4 pt-2 px-4">
+                        <div className="flex items-center">
+                          <label className="inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={autoRotateColors}
+                              onChange={(e) =>
+                                setAutoRotateColors(e.target.checked)
+                              }
+                            />
+                            <div className="relative w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                            <span className="ms-3 text-sm font-medium text-gray-300">
+                              Auto-Cycle Colors
+                            </span>
+                          </label>
+                        </div>
+                        <div className="h-64">
+                          <ColorPaletteSelector />
+                        </div>
                       </div>
                     </div>
                   </div>

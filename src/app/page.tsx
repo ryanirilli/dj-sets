@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider } from "@/contexts/SceneContext";
 import { Toolbar } from "@/components/Toolbar";
+import { VisualizerType } from "@/types/visualizers";
 import {
-  VisualizerType,
   getVisualizer,
   getDefaultVisualizer,
   getVisualizers,
-} from "@/types/visualizers";
-import { registerAllVisualizers } from "@/visualizers";
+} from "@/lib/visualizer-registry";
+import { registerAllVisualizers } from "@/components/visualizers";
 
 interface HomeContentProps {
   visualizerType: VisualizerType;
@@ -61,7 +61,7 @@ function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
 
 export default function Home() {
   const [visualizerType, setVisualizerType] =
-    useState<VisualizerType>("circular");
+    useState<VisualizerType>("icosahedron");
 
   return (
     <AudioProvider>
