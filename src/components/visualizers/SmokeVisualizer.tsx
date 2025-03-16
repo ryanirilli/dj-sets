@@ -207,40 +207,49 @@ const vertexShader = `
     float noiseX2 = snoise(noisePos * 2.0 + vec3(45.67, 89.01, 23.45));
     float noiseZ2 = snoise(noisePos * 2.0 + vec3(67.89, 12.34, 56.78));
     
-    // Calculate upward movement - natural floating motion without audio reactivity
+    // Calculate upward movement - enhanced shooting motion in early life
     // 1. Base upward velocity from initial velocity
-    float baseUpwardVelocity = aVelocity.y * 1.5; // Keep the increased velocity
+    float baseUpwardVelocity = aVelocity.y * 1.8; // Increased from 1.5 to 1.8 for stronger shooting
     
-    // 2. Age-based acceleration - particles slow down as they age
-    float ageAcceleration = 0.5 * (1.0 - normalizedAge * 0.3);
+    // 2. Age-based acceleration - particles shoot up quickly then slow down
+    // Enhanced early acceleration for more dramatic shooting effect
+    float ageAcceleration;
+    if (normalizedAge < 0.2) {
+      // Strong initial acceleration for shooting effect
+      ageAcceleration = 1.0 - normalizedAge * 0.5;
+    } else {
+      // Normal deceleration after initial burst
+      ageAcceleration = 0.9 * (1.0 - (normalizedAge - 0.2) * 0.4);
+    }
     
-    // 3. Early-age boost for initial plume effect (not audio reactive)
-    float earlyAgeBoost = max(0.0, 0.5 - normalizedAge) * 1.0;
+    // 3. Early-age boost for initial shooting effect (not audio reactive)
+    float earlyAgeBoost = max(0.0, 0.4 - normalizedAge) * 2.0; // Increased from 0.5/1.0 to 0.4/2.0
     
-    // Combine for total upward movement - natural deceleration without audio reactivity
+    // Combine for total upward movement - enhanced shooting effect
     float totalUpwardMovement = (baseUpwardVelocity * ageAcceleration + earlyAgeBoost) * age;
     
     // Apply upward movement from initial velocity and calculated movement
     pos.y += totalUpwardMovement;
     
-    // Apply horizontal movement from initial velocity
-    pos.x += aVelocity.x * age;
-    pos.z += aVelocity.z * age;
+    // Apply horizontal movement from initial velocity - reduced in early life for straighter shooting
+    float horizontalFactor = min(1.0, normalizedAge * 5.0); // Gradually increase horizontal movement
+    pos.x += aVelocity.x * age * horizontalFactor;
+    pos.z += aVelocity.z * age * horizontalFactor;
     
-    // Apply natural horizontal movement from noise - no audio reactivity
-    float turbulenceStrength = aTurbulence * 0.7;
+    // Apply natural horizontal movement from noise - reduced in early life for straighter shooting
+    float turbulenceStrength = aTurbulence * 0.7 * horizontalFactor;
     
-    // Apply noise-based movement for natural floating
+    // Apply noise-based movement for natural floating - reduced early for shooting effect
     pos.x += noiseX * turbulenceStrength * age * 0.6;
     pos.z += noiseZ * turbulenceStrength * age * 0.6;
     
-    // Apply secondary noise for more complex movement
+    // Apply secondary noise for more complex movement - reduced early for shooting effect
     pos.x += noiseX2 * turbulenceStrength * age * 0.3;
     pos.z += noiseZ2 * turbulenceStrength * age * 0.3;
     
-    // Add slight sinusoidal movement for more floating effect
-    pos.x += sin(age * (0.2 + aOffset * 0.1)) * 0.08 * age;
-    pos.z += cos(age * (0.15 + aOffset * 0.05)) * 0.08 * age;
+    // Add slight sinusoidal movement for more floating effect - reduced early for shooting effect
+    pos.x += sin(age * (0.2 + aOffset * 0.1)) * 0.08 * age * horizontalFactor;
+    pos.z += cos(age * (0.15 + aOffset * 0.05)) * 0.08 * age * horizontalFactor;
     
     // Individualized fade-out for each particle
     float fadeStart = aFadeStart;
@@ -259,10 +268,17 @@ const vertexShader = `
     // Calculate position
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     
-    // Size based on scale and distance - natural growth without audio reactivity
-    float sizeModifier = 1.0 + pow(normalizedAge, 0.3) * 2.0;
+    // Size based on scale and distance - enhanced growth for shooting effect
+    float sizeModifier;
+    if (normalizedAge < 0.1) {
+      // Start smaller for shooting effect
+      sizeModifier = 0.7 + normalizedAge * 5.0; // Quick initial growth
+    } else {
+      // Normal growth after initial shooting
+      sizeModifier = 1.2 + pow((normalizedAge - 0.1) * 1.1, 0.3) * 2.0;
+    }
     
-    // No audio-reactive size boost, just use the initial scale
+    // No audio-reactive size boost, just use the initial scale with enhanced modifier
     float size = uSize * aScale * sizeModifier * (1.0 / -mvPosition.z);
     
     gl_PointSize = size;
@@ -271,8 +287,12 @@ const vertexShader = `
     // Pass the particle color to fragment shader
     vColor = aColor;
     
-    // Pass rotation to fragment shader - slower rotation for more graceful effect
-    vRotation = aRotation + age * (0.2 + aOffset * 0.3);
+    // Pass rotation to fragment shader - faster rotation for shooting effect, then slowing
+    float rotationSpeed = 0.2 + aOffset * 0.3;
+    if (normalizedAge < 0.2) {
+      rotationSpeed *= 1.5; // Faster initial rotation for shooting effect
+    }
+    vRotation = aRotation + age * rotationSpeed;
   }
 `;
 
@@ -863,7 +883,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     }
   };
 
-  // Update the emitParticleBurst function to create a more dramatic plume
+  // Update the emitParticleBurst function to create a more dramatic shooting effect on beats
   const emitParticleBurst = (
     count: number,
     currentTime: number,
@@ -920,13 +940,13 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         activeAttr.setX(i, 1.0);
         burstTimeAttr.setX(i, currentTime);
 
-        // Set initial position - concentrated more in the center for a plume effect
+        // Set initial position - more concentrated in the center for a focused shooting effect
         // Use a tighter distribution for more focused plume
-        const radius = Math.random() * 3; // Reduced from 6 to 3 for tighter plume
+        const radius = Math.random() * 2.5; // Reduced from 3 to 2.5 for even tighter plume
         const angle = Math.random() * Math.PI * 2;
         const posX = Math.cos(angle) * radius;
         const posZ = Math.sin(angle) * radius;
-        const posY = 0.05; // Slightly above the plane to avoid z-fighting
+        const posY = 0.02; // Very close to the plane for a shooting effect
 
         // Set position
         const positionAttr = geometry.getAttribute(
@@ -934,22 +954,22 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         ) as THREE.BufferAttribute;
         positionAttr.setXYZ(i, posX, posY, posZ);
 
-        // Set initial velocity - much stronger upward velocity for dramatic plume
+        // Set initial velocity - much stronger upward velocity for dramatic shooting effect
         const velocityAttr = geometry.getAttribute(
           "aVelocity"
         ) as THREE.BufferAttribute;
 
-        // Even stronger upward velocity for beat particles
-        const upwardVelocity = 1.2 + Math.random() * 1.2; // Increased from 1.0-2.0 to 1.2-2.4
+        // Even stronger upward velocity for beat particles - dramatic shooting effect
+        const upwardVelocity = 2.0 + Math.random() * 1.5; // Increased from 1.2-2.4 to 2.0-3.5
 
-        // Less outward spread for a more focused column
-        const outwardFactor = 0.1 + Math.random() * 0.2;
+        // Less outward spread for a more focused shooting column
+        const outwardFactor = 0.05 + Math.random() * 0.15; // Reduced from 0.1-0.3 to 0.05-0.2
 
         // Calculate outward direction
         const dirX = posX === 0 ? Math.random() - 0.5 : Math.sign(posX);
         const dirZ = posZ === 0 ? Math.random() - 0.5 : Math.sign(posZ);
 
-        // Create velocity vector
+        // Create velocity vector - stronger upward component for shooting effect
         const vx = dirX * outwardFactor;
         const vy = upwardVelocity;
         const vz = dirZ * outwardFactor;
@@ -958,31 +978,31 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         velocityAttr.setXYZ(i, vx, vy, vz);
         initialVelocityAttr.setXYZ(i, vx, vy, vz);
 
-        // Set color based on frequency bands - brighter colors for beat particles
+        // Set color based on frequency bands - even brighter colors for beat particles
         const bandType = ["low", "mid", "high"][
           Math.floor(Math.random() * 3)
         ] as "low" | "mid" | "high";
         const [r, g, b] = getColorFromFrequencyBands(frequencyBands, bandType);
 
-        // Make beat particles brighter
-        const brightness = 1.8; // Increased from 1.5 to 1.8 for even more visible beat particles
+        // Make beat particles much brighter for more dramatic effect
+        const brightness = 2.2; // Increased from 1.8 to 2.2 for even more visible beat particles
         colorAttr.setXYZ(i, r * brightness, g * brightness, b * brightness);
 
         // Set random rotation
         rotationAttr.setX(i, Math.random() * Math.PI * 2);
 
-        // Longer lifetime for beat particles to create a lasting plume
-        const lifetime = 3.0 + Math.random() * 2.0;
+        // Longer lifetime for beat particles to create a lasting shooting effect
+        const lifetime = 3.5 + Math.random() * 2.0; // Increased from 3.0-5.0 to 3.5-5.5
         lifetimeAttr.setX(i, lifetime);
 
-        // Set fade parameters - slower fade for more visible plume
-        const fadeStart = 0.8;
-        const fadeLength = 0.2;
+        // Set fade parameters - slower fade for more visible shooting effect
+        const fadeStart = 0.85; // Increased from 0.8 to 0.85
+        const fadeLength = 0.15; // Reduced from 0.2 to 0.15 for sharper fade at the end
         fadeStartAttr.setX(i, fadeStart);
         fadeLengthAttr.setX(i, fadeLength);
 
-        // Set turbulence factor - less turbulence for more coherent plume
-        const turbulence = 0.2 + Math.random() * 0.3;
+        // Set turbulence factor - less turbulence for more coherent shooting effect
+        const turbulence = 0.15 + Math.random() * 0.25; // Reduced from 0.2-0.5 to 0.15-0.4
         turbulenceAttr.setX(i, turbulence);
 
         // Set frequency band influence
@@ -1039,9 +1059,9 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       beatActiveRef.current = true;
       beatDecayRef.current = 1.0; // Full beat intensity
 
-      // Emit a MUCH larger burst of particles on beat for obvious plume effect
+      // Emit an even larger burst of particles on beat for obvious shooting effect
       emitParticleBurst(
-        Math.floor(100 + audioAmplitude * 150), // Dramatically increased from 50+70 to 100+150
+        Math.floor(120 + audioAmplitude * 180), // Increased from 100+150 to 120+180
         currentTime,
         bands
       );

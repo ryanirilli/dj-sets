@@ -27,8 +27,8 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
   const BASE_SIZE = 2.0; // Increased from default 1.0
 
   // Min and max face counts
-  const MIN_FACES = 6;
-  const MAX_FACES = 30;
+  const MIN_FACES = 3;
+  const MAX_FACES = 15;
 
   // Function to create a polyhedron with approximately the specified number of faces
   function createPolyhedronWithFaces(
