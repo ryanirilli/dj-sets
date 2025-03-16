@@ -16,6 +16,9 @@ interface AudioContextType {
   togglePlayPause: () => void;
   setAudioFile: (file: string) => void;
   currentAudioFile: string | null;
+  bpm: number;
+  onBeat: boolean;
+  beatTime: number;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
@@ -36,6 +39,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(
     "/audio/set-00.mp3"
   );
+  const [bpm, setBpm] = useState<number>(120); // Default BPM
+  const [onBeat, setOnBeat] = useState<boolean>(false);
+  const [beatTime, setBeatTime] = useState<number>(0);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -43,6 +49,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number>();
   const isSourceConnectedRef = useRef<boolean>(false);
+
+  // Beat detection state
+  const peaksRef = useRef<number[]>([]);
+  const lastPeakTimeRef = useRef(0);
+  const peakThresholdRef = useRef(0.65);
+  const minPeakDistanceRef = useRef(0.2); // Minimum time between peaks in seconds
+  const lastBeatTimeRef = useRef(0);
+  const lastBassEnergyRef = useRef(0);
+  const beatIntervalRef = useRef(0.5); // Default beat interval (120 BPM)
+  const beatToleranceRef = useRef(0.05); // Tolerance for beat timing (in seconds)
+  const beatHistoryRef = useRef<{ interval: number; count: number }[]>([]);
 
   // Add a throttle mechanism to reduce the frequency of audio data updates
   const lastUpdateTimeRef = useRef(0);
@@ -144,6 +161,91 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Function to analyze intervals between peaks and determine BPM
+  // Based on Joe Sullivan's approach: http://joesul.li/van/beat-detection-using-web-audio/
+  const analyzePeakIntervals = useCallback(() => {
+    if (peaksRef.current.length < 4) return; // Need at least 4 peaks for analysis
+
+    // Calculate intervals between consecutive peaks
+    const intervals: number[] = [];
+    for (let i = 1; i < peaksRef.current.length; i++) {
+      intervals.push(peaksRef.current[i] - peaksRef.current[i - 1]);
+    }
+
+    // Count occurrences of similar intervals (group by rounding to nearest 50ms)
+    const intervalCounts: { [key: string]: number } = {};
+    intervals.forEach((interval) => {
+      // Round to nearest 50ms for grouping
+      const roundedInterval = Math.round(interval * 20) / 20;
+      intervalCounts[roundedInterval] =
+        (intervalCounts[roundedInterval] || 0) + 1;
+    });
+
+    // Convert to array for sorting
+    const intervalCountsArray = Object.entries(intervalCounts).map(
+      ([interval, count]) => ({
+        interval: parseFloat(interval),
+        count: count,
+      })
+    );
+
+    // Sort by count (descending)
+    intervalCountsArray.sort((a, b) => b.count - a.count);
+
+    // Store the interval history
+    beatHistoryRef.current = intervalCountsArray;
+
+    // If we have a clear winner, use it to determine BPM
+    if (
+      intervalCountsArray.length > 0 &&
+      (intervalCountsArray.length === 1 ||
+        intervalCountsArray[0].count > intervalCountsArray[1].count * 1.5)
+    ) {
+      const mostCommonInterval = intervalCountsArray[0].interval;
+
+      // Convert interval to BPM, adjusting to 90-180 BPM range as in the article
+      let tempoBPM = 60 / mostCommonInterval;
+
+      // Adjust to common BPM range (90-180)
+      while (tempoBPM < 90) tempoBPM *= 2;
+      while (tempoBPM > 180) tempoBPM /= 2;
+
+      // Update beat interval
+      beatIntervalRef.current = 60 / tempoBPM;
+
+      // Update BPM state
+      setBpm(Math.round(tempoBPM));
+
+      console.log(
+        "BPM detected:",
+        Math.round(tempoBPM),
+        "Interval:",
+        mostCommonInterval.toFixed(3)
+      );
+    }
+  }, []);
+
+  // Check if current time is on a beat
+  const checkForBeat = useCallback((currentTime: number) => {
+    if (beatIntervalRef.current <= 0) return false;
+
+    // Calculate time since last beat
+    const timeSinceLastBeat = currentTime - lastBeatTimeRef.current;
+
+    // If we're within one interval (with tolerance) of the last beat
+    if (
+      timeSinceLastBeat >= beatIntervalRef.current - beatToleranceRef.current &&
+      timeSinceLastBeat <= beatIntervalRef.current + beatToleranceRef.current
+    ) {
+      // This is a beat!
+      lastBeatTimeRef.current = currentTime;
+      setBeatTime(currentTime);
+      return true;
+    }
+
+    return false;
+  }, []);
+
   const updateAudioData = useCallback(() => {
     if (!analyserRef.current) return;
 
@@ -160,12 +262,56 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
       analyserRef.current.getByteFrequencyData(dataArray);
       setAudioData(dataArray);
+
+      // Beat detection based on Joe Sullivan's approach
+      if (dataArray.length > 0) {
+        // Extract bass frequencies (first few bands)
+        const bassData = Array.from(dataArray.slice(0, 4));
+
+        // Normalize bass energy to 0-1 range
+        const bassEnergy = Math.min(
+          1.0,
+          bassData.reduce((sum, val) => sum + val, 0) / (4 * 255)
+        );
+
+        // Peak detection
+        const currentTimeSeconds = audioContextRef.current?.currentTime || 0;
+        const isPeak =
+          bassEnergy > peakThresholdRef.current && // Above threshold
+          bassEnergy > lastBassEnergyRef.current * 1.2 && // 20% increase from last frame
+          currentTimeSeconds >
+            lastPeakTimeRef.current + minPeakDistanceRef.current; // Minimum time between peaks
+
+        if (isPeak) {
+          // Record this peak time
+          peaksRef.current.push(currentTimeSeconds);
+          lastPeakTimeRef.current = currentTimeSeconds;
+
+          // Keep only recent peaks (last 5 seconds)
+          while (
+            peaksRef.current.length > 0 &&
+            peaksRef.current[0] < currentTimeSeconds - 5
+          ) {
+            peaksRef.current.shift();
+          }
+
+          // Analyze peak intervals to determine BPM
+          analyzePeakIntervals();
+        }
+
+        // Store current bass energy for next frame comparison
+        lastBassEnergyRef.current = bassEnergy;
+
+        // Check if we're on a beat
+        const isOnBeat = checkForBeat(currentTimeSeconds);
+        setOnBeat(isOnBeat);
+      }
     } catch (error) {
       console.error("Error updating audio data:", error);
     }
 
     animationFrameRef.current = requestAnimationFrame(updateAudioData);
-  }, []);
+  }, [analyzePeakIntervals, checkForBeat]);
 
   // Start animation when playing
   useEffect(() => {
@@ -257,21 +403,23 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   const setAudioFile = useCallback(
     (file: string) => {
+      console.log("Setting new audio file:", file);
       setCurrentAudioFile(file);
+
       if (audioRef.current) {
         const wasPlaying = !audioRef.current.paused;
 
         // Pause current playback
         audioRef.current.pause();
 
-        // Create a new audio element to replace the current one
-        const newAudio = new Audio();
-        newAudio.src = file;
+        // Cancel any pending animation frames
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = undefined;
+        }
 
-        // When we create a new audio element, we need to reset our source connection state
-        isSourceConnectedRef.current = false;
-
-        // Clean up the old source if it exists
+        // STEP 1: Completely clean up all audio resources
+        // Disconnect and clean up all audio nodes
         if (sourceRef.current) {
           try {
             sourceRef.current.disconnect();
@@ -281,52 +429,149 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           sourceRef.current = null;
         }
 
-        // Replace the audio element
+        if (analyserRef.current) {
+          try {
+            analyserRef.current.disconnect();
+          } catch (error) {
+            console.error("Error disconnecting analyser:", error);
+          }
+        }
+
+        // Close the AudioContext completely
+        if (audioContextRef.current) {
+          try {
+            if (audioContextRef.current.state !== "closed") {
+              audioContextRef.current.close();
+              console.log("AudioContext closed successfully");
+            }
+          } catch (error) {
+            console.error("Error closing AudioContext:", error);
+          }
+          audioContextRef.current = null;
+          analyserRef.current = null;
+        }
+
+        // Reset connection state
+        isSourceConnectedRef.current = false;
+
+        // STEP 2: Reset all beat detection state
+        // Reset all beat detection variables to their initial values
+        peaksRef.current = [];
+        lastPeakTimeRef.current = 0;
+        lastBeatTimeRef.current = 0;
+        lastBassEnergyRef.current = 0;
+        beatHistoryRef.current = [];
+        beatIntervalRef.current = 0.5; // Reset to default interval (120 BPM)
+
+        // Reset state variables
+        setBpm(120);
+        setOnBeat(false);
+        setBeatTime(0);
+        setAudioData(null);
+
+        // STEP 3: Create a new audio element
+        const newAudio = new Audio();
+        newAudio.src = file;
+        newAudio.crossOrigin = "anonymous";
+        newAudio.preload = "auto"; // Ensure audio is preloaded
+
+        // Add event listeners to the new audio element
+        newAudio.addEventListener("timeupdate", handleTimeUpdate);
+        newAudio.addEventListener("durationchange", handleDurationChange);
+        newAudio.addEventListener("ended", () => setIsPlaying(false));
+
+        // STEP 4: Replace the audio element in the DOM
         if (audioRef.current.parentNode) {
-          // Store a reference to the current audio element
           const currentAudio = audioRef.current;
 
-          // Add event listeners to the new audio element
-          newAudio.addEventListener("timeupdate", handleTimeUpdate);
-          newAudio.addEventListener("durationchange", handleDurationChange);
-          newAudio.addEventListener("ended", () => setIsPlaying(false));
-
-          // Replace the element in the DOM
           if (currentAudio.parentNode) {
             currentAudio.parentNode.replaceChild(newAudio, currentAudio);
+            console.log("Audio element replaced in DOM");
           }
 
-          // Update our ref (safely, as a mutable object property)
+          // Update our ref
           if (audioRef && typeof audioRef === "object") {
             (audioRef as any).current = newAudio;
           }
+        }
 
-          // If it was playing before, start playing the new audio
-          if (wasPlaying) {
-            initializeAudioContext();
-            resumeAudioContext();
+        console.log("Audio element replaced, beat detection state reset");
 
-            newAudio
-              .play()
-              .then(() => {
-                setupAudioAnalyser();
-              })
-              .catch((error) => {
-                console.error("Error playing new audio:", error);
+        // STEP 5: If it was playing before, start playing the new audio
+        if (wasPlaying) {
+          // Use a longer timeout to ensure everything is ready
+          setTimeout(() => {
+            try {
+              // Create a completely new AudioContext
+              audioContextRef.current = new (window.AudioContext ||
+                (window as any).webkitAudioContext)();
+              console.log(
+                "New AudioContext created:",
+                audioContextRef.current.state
+              );
+
+              // Create a new analyser node
+              analyserRef.current = audioContextRef.current.createAnalyser();
+              analyserRef.current.fftSize = 128;
+              analyserRef.current.smoothingTimeConstant = 0.5;
+
+              // Ensure the audio element is ready
+              if (
+                audioRef.current &&
+                audioContextRef.current &&
+                analyserRef.current
+              ) {
+                // Create and connect the source
+                sourceRef.current =
+                  audioContextRef.current.createMediaElementSource(
+                    audioRef.current
+                  );
+                sourceRef.current.connect(analyserRef.current);
+                analyserRef.current.connect(
+                  audioContextRef.current.destination
+                );
+                isSourceConnectedRef.current = true;
+
+                console.log("New audio source connected to analyser");
+
+                // Resume the AudioContext if needed
+                if (audioContextRef.current.state === "suspended") {
+                  audioContextRef.current
+                    .resume()
+                    .then(() => console.log("AudioContext resumed"))
+                    .catch((err) =>
+                      console.error("Failed to resume AudioContext:", err)
+                    );
+                }
+
+                // Start playback
+                audioRef.current
+                  .play()
+                  .then(() => {
+                    console.log("New audio playback started");
+                    // Start the animation frame for beat detection
+                    updateAudioData();
+                    setIsPlaying(true);
+                  })
+                  .catch((error) => {
+                    console.error("Error playing new audio:", error);
+                    setIsPlaying(false);
+                  });
+              } else {
+                console.error("Audio elements not properly initialized");
                 setIsPlaying(false);
-              });
-            setIsPlaying(true);
-          }
+              }
+            } catch (error) {
+              console.error("Error in audio initialization:", error);
+              setIsPlaying(false);
+            }
+          }, 300); // Increased delay to ensure everything is ready
+        } else {
+          setIsPlaying(false);
         }
       }
     },
-    [
-      setupAudioAnalyser,
-      initializeAudioContext,
-      handleTimeUpdate,
-      handleDurationChange,
-      resumeAudioContext,
-    ]
+    [handleTimeUpdate, handleDurationChange, updateAudioData]
   );
 
   const value = {
@@ -338,6 +583,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     togglePlayPause,
     setAudioFile,
     currentAudioFile,
+    bpm,
+    onBeat,
+    beatTime,
   };
 
   return (
