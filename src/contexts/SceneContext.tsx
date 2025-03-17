@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, Preload, Environment } from "@react-three/drei";
+import { OrbitControls, Preload, Environment, Stats } from "@react-three/drei";
 import * as THREE from "three";
 import { createContext, useContext } from "react";
 import {
@@ -10,6 +10,7 @@ import {
   getColorPalettes,
 } from "@/types/colorPalettes";
 import { useAudio } from "./AudioContext";
+import StatsDisplay from "@/components/StatsDisplay";
 
 // Force render component to ensure continuous animation
 const ForceRender = () => {
@@ -42,6 +43,76 @@ const AutoRotateManager = ({ autoRotate }: { autoRotate: boolean }) => {
       }
     });
   });
+
+  return null;
+};
+
+// Resource cleanup component to help with memory management
+const ResourceCleaner = () => {
+  const { gl, scene } = useThree();
+
+  // Function to dispose of Three.js resources
+  const disposeObject = useCallback((obj: THREE.Object3D) => {
+    if (obj.children) {
+      // Recursively dispose of children
+      obj.children.forEach((child) => disposeObject(child));
+    }
+
+    // Dispose of geometries
+    if ((obj as any).geometry) {
+      (obj as any).geometry.dispose();
+    }
+
+    // Dispose of materials
+    if ((obj as any).material) {
+      if (Array.isArray((obj as any).material)) {
+        (obj as any).material.forEach((material: THREE.Material) => {
+          disposeMaterial(material);
+        });
+      } else {
+        disposeMaterial((obj as any).material);
+      }
+    }
+  }, []);
+
+  // Helper to dispose of material resources
+  const disposeMaterial = useCallback((material: THREE.Material) => {
+    // Dispose of textures
+    Object.keys(material).forEach((prop) => {
+      const value = material[prop as keyof THREE.Material];
+      if (
+        value &&
+        typeof value === "object" &&
+        "isTexture" in value &&
+        value.isTexture
+      ) {
+        value.dispose();
+      }
+    });
+
+    // Dispose of material itself
+    material.dispose();
+  }, []);
+
+  // Clean up unused resources periodically
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      // Force garbage collection of unused resources
+      THREE.Cache.clear();
+
+      // Log memory usage
+      if (process.env.NODE_ENV === "development") {
+        console.log("Memory usage:", {
+          geometries: (gl as any).info?.memory?.geometries || 0,
+          textures: (gl as any).info?.memory?.textures || 0,
+        });
+      }
+    }, 10000); // Run every 10 seconds
+
+    return () => {
+      clearInterval(cleanupInterval);
+    };
+  }, [gl]);
 
   return null;
 };
@@ -146,6 +217,8 @@ interface SceneContextType {
   setBackgroundBlurriness: (value: number) => void;
   backgroundIntensity: number;
   setBackgroundIntensity: (value: number) => void;
+  showPerformanceStats: boolean;
+  togglePerformanceStats: () => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -165,9 +238,53 @@ const SceneContext = createContext<SceneContextType>({
   setBackgroundBlurriness: () => {},
   backgroundIntensity: 0.7,
   setBackgroundIntensity: () => {},
+  showPerformanceStats: false,
+  togglePerformanceStats: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
+
+// Component to collect renderer stats and update the ref
+const RendererStats = ({
+  infoRef,
+}: {
+  infoRef: React.MutableRefObject<any>;
+}) => {
+  const { gl } = useThree();
+  const frameCountRef = useRef(0);
+  const lastTimeRef = useRef(0);
+
+  useFrame((_, delta) => {
+    // Update FPS calculation
+    if (!lastTimeRef.current) {
+      lastTimeRef.current = performance.now();
+    }
+
+    frameCountRef.current++;
+    const currentTime = performance.now();
+    const elapsed = currentTime - lastTimeRef.current;
+
+    // Update stats every 500ms for smoother readings
+    if (elapsed >= 500) {
+      const fps = Math.round((frameCountRef.current * 1000) / elapsed);
+
+      // Get detailed renderer info
+      infoRef.current = {
+        fps,
+        geometries: gl.info?.memory?.geometries || 0,
+        textures: gl.info?.memory?.textures || 0,
+        triangles: gl.info?.render?.triangles || 0,
+        calls: gl.info?.render?.calls || 0,
+      };
+
+      // Reset counters
+      frameCountRef.current = 0;
+      lastTimeRef.current = currentTime;
+    }
+  });
+
+  return null;
+};
 
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const [autoRotate, setAutoRotate] = useState(true);
@@ -176,6 +293,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const [environment, setEnvironment] = useState<string | null>(null);
   const [backgroundBlurriness, setBackgroundBlurriness] = useState(0.3);
   const [backgroundIntensity, setBackgroundIntensity] = useState(0.7);
+  const [showPerformanceStats, setShowPerformanceStats] = useState(false);
   const [colorPalette, setColorPaletteState] = useState<ColorPalette>(
     getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette
   );
@@ -185,6 +303,19 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const colorRotationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const transitionFrameRef = useRef<number | null>(null);
   const lastTransitionTimeRef = useRef<number>(0);
+  const rendererInfoRef = useRef<{
+    fps: number;
+    geometries: number;
+    textures: number;
+    triangles: number;
+    calls: number;
+  }>({
+    fps: 0,
+    geometries: 0,
+    textures: 0,
+    triangles: 0,
+    calls: 0,
+  });
 
   // Debug auto-rotate state
   useEffect(() => {
@@ -335,73 +466,61 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     console.log("Scene content updated:", !!sceneContent);
   }, [sceneContent]);
 
-  // Dispose Three.js resources when component unmounts
-  useEffect(() => {
-    return () => {
-      // Force garbage collection of Three.js objects
-      if (typeof window !== "undefined") {
-        // Clear any cached resources in the Three.js cache
-        THREE.Cache.clear();
-      }
-    };
+  // Toggle performance stats display
+  const togglePerformanceStats = useCallback(() => {
+    setShowPerformanceStats((prev) => !prev);
   }, []);
 
-  // Ensure auto-rotation is properly initialized
-  useEffect(() => {
-    // Force auto-rotation to be enabled on mount
-    setAutoRotate(true);
-
-    return () => {
-      // Clean up any resources
-    };
-  }, []);
+  // Add performance stats to context
+  const contextValue: SceneContextType = {
+    autoRotate,
+    setAutoRotate,
+    showGrid,
+    setShowGrid,
+    colorPalette: displayPalette,
+    setColorPalette,
+    autoRotateColors,
+    setAutoRotateColors,
+    transitionProgress,
+    toggleAutoRotate,
+    environment,
+    setEnvironment,
+    backgroundBlurriness,
+    setBackgroundBlurriness,
+    backgroundIntensity,
+    setBackgroundIntensity,
+    showPerformanceStats,
+    togglePerformanceStats,
+  };
 
   return (
-    <SceneContext.Provider
-      value={{
-        autoRotate,
-        setAutoRotate,
-        showGrid,
-        setShowGrid,
-        colorPalette: displayPalette,
-        setColorPalette,
-        autoRotateColors,
-        setAutoRotateColors,
-        transitionProgress,
-        toggleAutoRotate,
-        environment,
-        setEnvironment,
-        backgroundBlurriness,
-        setBackgroundBlurriness,
-        backgroundIntensity,
-        setBackgroundIntensity,
-      }}
-    >
+    <SceneContext.Provider value={contextValue}>
       <div className="absolute inset-0 flex flex-col w-full h-full">
         <div className="relative flex-1 h-full">
           <Canvas
             camera={{
-              position: [0, 6, 8], // Lower height and further back for better perspective
-              fov: 55, // Slightly wider field of view to see more
+              position: [0, 6, 8],
+              fov: 55,
               near: 0.1,
               far: 1000,
             }}
             shadows
             className="touch-none"
-            // Add performance optimizations
             gl={{
-              antialias: false, // Disable antialiasing for better performance
+              antialias: false,
               powerPreference: "high-performance",
               alpha: false,
               stencil: false,
               depth: true,
+              // Add performance optimizations
+              logarithmicDepthBuffer: true, // Better depth precision
             }}
-            // Use 'always' instead of 'demand' to ensure continuous rendering
             frameloop="always"
+            performance={{ min: 0.5 }} // Allow frame rate to drop to 30fps under load
           >
             <color attach="background" args={["#000"]} />
 
-            {/* Environment map */}
+            {/* Environment map - only load when needed */}
             {environment && (
               <Environment
                 files={`/images/environments/${environment}`}
@@ -426,11 +545,11 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               makeDefault
               minDistance={2}
               maxDistance={50}
-              minPolarAngle={Math.PI / 8} // Limit how far overhead the camera can go
-              maxPolarAngle={Math.PI / 2} // Limit to not go below the horizon
+              minPolarAngle={Math.PI / 8}
+              maxPolarAngle={Math.PI / 2}
               autoRotate={autoRotate}
-              autoRotateSpeed={0.5} // Slow rotation speed
-              target={[0, 0, 0]} // Look at the center of the scene
+              autoRotateSpeed={0.5}
+              target={[0, 0, 0]}
               enableDamping={true}
               dampingFactor={0.05}
             />
@@ -446,8 +565,27 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               />
             )}
 
+            {/* Resource cleanup helper */}
+            <ResourceCleaner />
+
+            {/* Performance monitoring components - only use RendererStats to collect data */}
+            {showPerformanceStats && (
+              <RendererStats infoRef={rendererInfoRef} />
+            )}
+
             <Preload all />
           </Canvas>
+
+          {/* Performance monitoring - render outside Canvas with improved positioning */}
+          {showPerformanceStats && (
+            <StatsDisplay
+              fps={rendererInfoRef.current.fps}
+              geometries={rendererInfoRef.current.geometries}
+              textures={rendererInfoRef.current.textures}
+              triangles={rendererInfoRef.current.triangles}
+              calls={rendererInfoRef.current.calls}
+            />
+          )}
         </div>
         {children}
       </div>

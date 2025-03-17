@@ -27,6 +27,12 @@ export function registerVisualizer(entry: VisualizerRegistryEntry): void {
 export function unregisterVisualizer(id: string): void {
   const index = visualizerRegistry.findIndex((v) => v.id === id);
   if (index >= 0) {
+    // Call cleanup function if it exists
+    if (visualizerRegistry[index].cleanup) {
+      visualizerRegistry[index].cleanup();
+    }
+
+    // Remove from registry
     visualizerRegistry.splice(index, 1);
   }
 }
@@ -53,4 +59,26 @@ export function getVisualizer(
  */
 export function getDefaultVisualizer(): VisualizerRegistryEntry | undefined {
   return visualizerRegistry[0];
+}
+
+/**
+ * Clean up resources for a specific visualizer
+ * @param id The ID of the visualizer to clean up
+ */
+export function cleanupVisualizer(id: VisualizerType): void {
+  const visualizer = getVisualizer(id);
+  if (visualizer && visualizer.cleanup) {
+    visualizer.cleanup();
+  }
+}
+
+/**
+ * Clean up resources for all visualizers
+ */
+export function cleanupAllVisualizers(): void {
+  visualizerRegistry.forEach((visualizer) => {
+    if (visualizer.cleanup) {
+      visualizer.cleanup();
+    }
+  });
 }
