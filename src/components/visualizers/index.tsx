@@ -14,14 +14,6 @@ const AudioBars = dynamic(() => import("@/components/visualizers/AudioBars"), {
   loading: () => <LoadingComponent name="AudioBars" />,
 }) as React.ComponentType<VisualizerProps>;
 
-const WaveformBars = dynamic(
-  () => import("@/components/visualizers/WaveformBars"),
-  {
-    ssr: false,
-    loading: () => <LoadingComponent name="WaveformBars" />,
-  }
-) as React.ComponentType<VisualizerProps>;
-
 const SmokeVisualizer = dynamic(
   () => import("@/components/visualizers/SmokeVisualizer"),
   {
@@ -46,14 +38,6 @@ export function registerAllVisualizers() {
     name: "Circular",
     component: AudioBars,
     description: "Circular audio bars that react to music",
-  });
-
-  // Register waveform bars
-  registerVisualizer({
-    id: "waveform",
-    name: "Waveform",
-    component: WaveformBars,
-    description: "Linear waveform bars that react to music",
   });
 
   // Register smoke visualizer
@@ -83,4 +67,4 @@ export function registerAllVisualizers() {
 }
 
 // Export dynamic components for direct use if needed
-export { AudioBars, WaveformBars, SmokeVisualizer, IcosahedronVisualizer };
+export { AudioBars, SmokeVisualizer, IcosahedronVisualizer };

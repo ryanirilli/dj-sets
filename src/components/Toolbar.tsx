@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
-import AudioSelectorShadcn from "./AudioSelectorShadcn";
+import AudioSelector from "./AudioSelector";
 import ColorPaletteSelector from "./ColorPaletteSelector";
 import EnvironmentSelector from "./EnvironmentSelector";
 import { VisualizerType } from "@/types/visualizers";
@@ -419,7 +419,7 @@ export const Toolbar = ({
                           openSections.audio ? "" : "pointer-events-none"
                         }`}
                       >
-                        <AudioSelectorShadcn
+                        <AudioSelector
                           onSelect={setAudioFile}
                           selectedFile={currentAudioFile}
                         />

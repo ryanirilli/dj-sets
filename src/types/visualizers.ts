@@ -6,12 +6,7 @@ export interface VisualizerProps {
 }
 
 // Valid visualizer types
-export type VisualizerType =
-  | "smoke"
-  | "waveform"
-  | "bars"
-  | "icosahedron"
-  | string; // Allow for dynamic registration
+export type VisualizerType = "smoke" | "circular" | "icosahedron" | string; // Allow for dynamic registration
 
 // Entry in the visualizer registry
 export interface VisualizerRegistryEntry {

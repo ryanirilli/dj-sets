@@ -1,4 +1,11 @@
 import { useState, useEffect } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AudioSelectorProps {
   onSelect: (audioFile: string) => void;
@@ -9,7 +16,6 @@ const AudioSelector = ({ onSelect, selectedFile }: AudioSelectorProps) => {
   const [audioFiles, setAudioFiles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     // In a real app, you would fetch this list from an API
@@ -68,80 +74,33 @@ const AudioSelector = ({ onSelect, selectedFile }: AudioSelectorProps) => {
     );
   }
 
-  const selectedFileName = selectedFile?.split("/").pop() || "Select a track";
+  const selectedFileName = selectedFile?.split("/").pop() || "";
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`
-          w-full px-3 py-2 
-          text-left text-sm font-medium
-          bg-black/40 hover:bg-black/60
-          text-white/80 hover:text-white
-          rounded-lg
-          ring-1 ring-inset ring-white/5
-          transition-all duration-200
-          flex items-center justify-between
-          group
-        `}
+    <Select
+      value={selectedFileName || undefined}
+      onValueChange={(value) => onSelect(`/audio/${value}`)}
+    >
+      <SelectTrigger className="w-full bg-black/40 text-white/80 border-white/10 hover:bg-black/60 hover:text-white focus:ring-blue-500/20 focus:ring-offset-0">
+        <SelectValue placeholder="Select a track" />
+      </SelectTrigger>
+      <SelectContent
+        className="bg-black/90 backdrop-blur-md text-white border-white/10 rounded-md shadow-lg"
+        position="popper"
+        sideOffset={5}
+        align="center"
       >
-        <span className="truncate">{selectedFileName}</span>
-        <svg
-          className={`
-            w-4 h-4 
-            transform transition-transform duration-200 
-            text-white/40 group-hover:text-white/80
-            ${isOpen ? "rotate-180" : ""}
-          `}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
-
-      {isOpen && (
-        <div
-          className="
-          absolute z-50 w-full mt-2
-          bg-black/90 backdrop-blur-md
-          rounded-lg ring-1 ring-white/10
-          shadow-2xl
-          max-h-48 overflow-y-auto
-        "
-        >
-          {audioFiles.map((file) => (
-            <button
-              key={file}
-              className={`
-                w-full px-3 py-2 
-                text-left text-sm font-medium
-                transition-all duration-200
-                ${
-                  selectedFile === `/audio/${file}`
-                    ? "bg-white/10 text-white"
-                    : "text-white/60 hover:bg-black/60 hover:text-white/80"
-                }
-                first:rounded-t-lg last:rounded-b-lg
-              `}
-              onClick={() => {
-                onSelect(`/audio/${file}`);
-                setIsOpen(false);
-              }}
-            >
-              {file}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+        {audioFiles.map((file) => (
+          <SelectItem
+            key={file}
+            value={file}
+            className="text-white/80 hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white data-[selected]:bg-white/10 data-[selected]:text-white"
+          >
+            {file}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 };
 
