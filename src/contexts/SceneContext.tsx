@@ -124,16 +124,75 @@ interface SceneProviderProps {
 
 // Custom lighting setup optimized for volumetric effects like smoke
 const SceneLighting = () => {
+  const { colorPalette, transitionProgress } = useSceneContext();
+
+  // Extract colors from the current palette
+  const mainColor = colorPalette.colors[0]; // Primary color
+  const secondaryColor = colorPalette.colors[1]; // Secondary color
+  const accentColor = colorPalette.colors[2]; // Accent color
+
+  // Create lighter, more subtle versions of the colors for lighting
+  const createSubtleColor = (hexColor: string, factor: number = 0.3) => {
+    const color = new THREE.Color(hexColor);
+    // Mix with white to create a lighter version
+    return color.lerp(new THREE.Color("#ffffff"), factor).getHexString();
+  };
+
+  // Create ambient, main and fill light colors based on the palette
+  const ambientColor = `#${createSubtleColor(mainColor, 0.7)}`; // Very subtle version of main color
+  const mainLightColor = `#${createSubtleColor(secondaryColor, 0.5)}`; // Lighter version of secondary color
+  const fillLightColor = `#${createSubtleColor(accentColor, 0.6)}`; // Subtle version of accent color
+  const rimLightColor = `#${createSubtleColor(mainColor, 0.4)}`; // Subtle version of main color
+
+  // Use transition progress for smooth animations when changing palettes
+  const ambientRef = useRef<THREE.AmbientLight>(null);
+  const mainLightRef = useRef<THREE.DirectionalLight>(null);
+  const fillLightRef = useRef<THREE.DirectionalLight>(null);
+  const rimLightRef = useRef<THREE.DirectionalLight>(null);
+  const pointLightRef = useRef<THREE.PointLight>(null);
+
+  // Update colors smoothly using the transition progress
+  useFrame(() => {
+    if (
+      ambientRef.current &&
+      mainLightRef.current &&
+      fillLightRef.current &&
+      rimLightRef.current &&
+      pointLightRef.current
+    ) {
+      // Get current colors
+      const ambient = ambientRef.current.color;
+      const main = mainLightRef.current.color;
+      const fill = fillLightRef.current.color;
+      const rim = rimLightRef.current.color;
+      const point = pointLightRef.current.color;
+
+      // Target colors
+      const targetAmbient = new THREE.Color(ambientColor);
+      const targetMain = new THREE.Color(mainLightColor);
+      const targetFill = new THREE.Color(fillLightColor);
+      const targetRim = new THREE.Color(rimLightColor);
+
+      // Smoothly interpolate colors
+      ambient.lerp(targetAmbient, 0.05);
+      main.lerp(targetMain, 0.05);
+      fill.lerp(targetFill, 0.05);
+      rim.lerp(targetRim, 0.05);
+      point.lerp(targetAmbient, 0.05);
+    }
+  });
+
   return (
     <>
       {/* Ambient light - very subtle to avoid washing out the smoke */}
-      <ambientLight intensity={0.1} color="#334455" />
+      <ambientLight ref={ambientRef} intensity={0.1} color={ambientColor} />
 
       {/* Main directional light - reduced intensity */}
       <directionalLight
+        ref={mainLightRef}
         position={[5, 8, 5]}
         intensity={0.3}
-        color="#eef0ff"
+        color={mainLightColor}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -141,23 +200,26 @@ const SceneLighting = () => {
 
       {/* Fill light from opposite side - very subtle */}
       <directionalLight
+        ref={fillLightRef}
         position={[-5, 3, -5]}
         intensity={0.1}
-        color="#aabbdd"
+        color={fillLightColor}
       />
 
       {/* Subtle rim light to define edges */}
       <directionalLight
+        ref={rimLightRef}
         position={[0, 5, -10]}
         intensity={0.15}
-        color="#ddeeff"
+        color={rimLightColor}
       />
 
       {/* Very subtle point light near the ground for depth */}
       <pointLight
+        ref={pointLightRef}
         position={[0, 0.5, 0]}
         intensity={0.2}
-        color="#445566"
+        color={ambientColor}
         distance={8}
         decay={2}
       />
@@ -217,6 +279,8 @@ interface SceneContextType {
   setBackgroundBlurriness: (value: number) => void;
   backgroundIntensity: number;
   setBackgroundIntensity: (value: number) => void;
+  environmentTintStrength: number;
+  setEnvironmentTintStrength: (value: number) => void;
   showPerformanceStats: boolean;
   togglePerformanceStats: () => void;
 }
@@ -234,10 +298,12 @@ const SceneContext = createContext<SceneContextType>({
   toggleAutoRotate: () => {},
   environment: null,
   setEnvironment: () => {},
-  backgroundBlurriness: 0.3,
+  backgroundBlurriness: 0,
   setBackgroundBlurriness: () => {},
-  backgroundIntensity: 0.7,
+  backgroundIntensity: 0.5,
   setBackgroundIntensity: () => {},
+  environmentTintStrength: 0.5,
+  setEnvironmentTintStrength: () => {},
   showPerformanceStats: false,
   togglePerformanceStats: () => {},
 });
@@ -286,13 +352,109 @@ const RendererStats = ({
   return null;
 };
 
+// Custom environment component that applies a color tint to match the palette
+const ColorTintedEnvironment = () => {
+  const {
+    environment,
+    backgroundBlurriness,
+    backgroundIntensity,
+    colorPalette,
+    environmentTintStrength,
+  } = useSceneContext();
+
+  // Skip if no environment is selected
+  if (!environment) return null;
+
+  // Calculate average brightness of the palette
+  const calculateBrightness = (color: string) => {
+    const c = new THREE.Color(color);
+    return c.r * 0.299 + c.g * 0.587 + c.b * 0.114; // Perceived brightness formula
+  };
+
+  const averageBrightness =
+    colorPalette.colors.reduce(
+      (sum, color) => sum + calculateBrightness(color),
+      0
+    ) / colorPalette.colors.length;
+
+  // Create a color tint based on the current palette
+  // Use a mix of the first two colors for the tint
+  const tintColor = new THREE.Color()
+    .set(colorPalette.colors[0])
+    .lerp(new THREE.Color(colorPalette.colors[1]), 0.3);
+
+  // For bright palettes, use a more saturated tint
+  // For dark palettes, use a lighter tint
+  const saturatedTint = tintColor.clone();
+  if (averageBrightness > 0.6) {
+    // For bright palettes, increase saturation
+    saturatedTint.multiplyScalar(1.2);
+  } else {
+    // For dark palettes, add some brightness
+    saturatedTint.lerp(new THREE.Color("#ffffff"), 0.3);
+  }
+
+  // Use user-controlled tint strength but adjust it based on palette brightness
+  const baseTintStrength = environmentTintStrength;
+  // Apply a subtle adjustment based on brightness
+  const tintStrength =
+    averageBrightness > 0.5
+      ? baseTintStrength * 1.1 // Slightly stronger for bright palettes
+      : baseTintStrength * 0.9; // Slightly weaker for dark palettes
+
+  // Use the second ref to animate transitions
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  // Smoothly transition the color when palette changes
+  useFrame(() => {
+    if (materialRef.current) {
+      // Smoothly transition to target color
+      materialRef.current.color.lerp(saturatedTint, 0.05);
+
+      // Smoothly adjust opacity if needed
+      materialRef.current.opacity +=
+        (tintStrength - materialRef.current.opacity) * 0.05;
+    }
+  });
+
+  return (
+    <>
+      {/* Original environment */}
+      <Environment
+        files={`/images/environments/${environment}`}
+        background={true}
+        backgroundBlurriness={backgroundBlurriness}
+        backgroundIntensity={backgroundIntensity}
+        environmentIntensity={1.2}
+        preset={undefined}
+      />
+
+      {/* Color tint layer - only show if tint strength is > 0 AND environment is selected */}
+      {environmentTintStrength > 0 && environment && (
+        <mesh renderOrder={-1000} scale={[100, 100, 100]}>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshBasicMaterial
+            ref={materialRef}
+            color={saturatedTint}
+            transparent={true}
+            opacity={tintStrength}
+            side={THREE.BackSide}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
+    </>
+  );
+};
+
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const [autoRotate, setAutoRotate] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [autoRotateColors, setAutoRotateColors] = useState(true);
   const [environment, setEnvironment] = useState<string | null>(null);
-  const [backgroundBlurriness, setBackgroundBlurriness] = useState(0.3);
-  const [backgroundIntensity, setBackgroundIntensity] = useState(0.7);
+  const [backgroundBlurriness, setBackgroundBlurriness] = useState(0);
+  const [backgroundIntensity, setBackgroundIntensity] = useState(0.5);
   const [showPerformanceStats, setShowPerformanceStats] = useState(false);
   const [colorPalette, setColorPaletteState] = useState<ColorPalette>(
     getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette
@@ -316,6 +478,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     triangles: 0,
     calls: 0,
   });
+  const [environmentTintStrength, setEnvironmentTintStrength] = useState(0.5);
 
   // Debug auto-rotate state
   useEffect(() => {
@@ -471,6 +634,25 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     setShowPerformanceStats((prev) => !prev);
   }, []);
 
+  // Automatically adjust environment settings based on color palette
+  useEffect(() => {
+    // For bright color palettes, reduce background intensity
+    const isBrightPalette = colorPalette.colors.some((color) => {
+      const c = new THREE.Color(color);
+      // Calculate perceived brightness (weighted RGB)
+      return c.r * 0.299 + c.g * 0.587 + c.b * 0.114 > 0.7;
+    });
+
+    // Only make automatic adjustments if the values are at extremes
+    if (isBrightPalette && backgroundIntensity > 0.7) {
+      // Reduce intensity for extremely bright palettes only if it's set too high
+      setBackgroundIntensity((prevIntensity) => Math.min(prevIntensity, 0.6));
+    } else if (!isBrightPalette && backgroundIntensity < 0.3) {
+      // Increase intensity for dark palettes only if it's set too low
+      setBackgroundIntensity((prevIntensity) => Math.max(prevIntensity, 0.4));
+    }
+  }, [colorPalette, backgroundIntensity, setBackgroundIntensity]);
+
   // Add performance stats to context
   const contextValue: SceneContextType = {
     autoRotate,
@@ -489,6 +671,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     setBackgroundBlurriness,
     backgroundIntensity,
     setBackgroundIntensity,
+    environmentTintStrength,
+    setEnvironmentTintStrength,
     showPerformanceStats,
     togglePerformanceStats,
   };
@@ -499,8 +683,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
         <div className="relative flex-1 h-full">
           <Canvas
             camera={{
-              position: [0, 6, 8],
-              fov: 55,
+              position: [0, 2, 10],
+              fov: 50,
               near: 0.1,
               far: 1000,
             }}
@@ -518,18 +702,24 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
             frameloop="always"
             performance={{ min: 0.5 }} // Allow frame rate to drop to 30fps under load
           >
-            <color attach="background" args={["#000"]} />
-
-            {/* Environment map - only load when needed */}
-            {environment && (
-              <Environment
-                files={`/images/environments/${environment}`}
-                background={true}
-                backgroundBlurriness={backgroundBlurriness}
-                backgroundIntensity={backgroundIntensity}
-                environmentIntensity={1.2}
+            {/* Set background color based on environment selection */}
+            {environment ? (
+              /* When environment is selected, use palette-derived color */
+              <color
+                attach="background"
+                args={[
+                  new THREE.Color(colorPalette.colors[0])
+                    .multiplyScalar(0.15)
+                    .getStyle(),
+                ]}
               />
+            ) : (
+              /* When no environment is selected, use pure black */
+              <color attach="background" args={["#000000"]} />
             )}
+
+            {/* Only render the environment when we have an environment selected */}
+            {environment && <ColorTintedEnvironment />}
 
             {/* Custom lighting setup for better smoke rendering */}
             <SceneLighting />
@@ -543,10 +733,10 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
             {/* Controls */}
             <OrbitControls
               makeDefault
-              minDistance={2}
+              minDistance={3}
               maxDistance={50}
-              minPolarAngle={Math.PI / 8}
-              maxPolarAngle={Math.PI / 2}
+              minPolarAngle={Math.PI / 6}
+              maxPolarAngle={Math.PI * 0.6}
               autoRotate={autoRotate}
               autoRotateSpeed={0.5}
               target={[0, 0, 0]}

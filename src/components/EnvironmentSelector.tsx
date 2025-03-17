@@ -25,6 +25,8 @@ const EnvironmentSelector = () => {
     setBackgroundBlurriness,
     backgroundIntensity,
     setBackgroundIntensity,
+    environmentTintStrength,
+    setEnvironmentTintStrength,
   } = useSceneContext();
   const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(
     environment
@@ -45,6 +47,11 @@ const EnvironmentSelector = () => {
   // Handle intensity slider change
   const handleIntensityChange = (value: number[]) => {
     setBackgroundIntensity(value[0]);
+  };
+
+  // Handle tint strength slider change
+  const handleTintStrengthChange = (value: number[]) => {
+    setEnvironmentTintStrength(value[0]);
   };
 
   return (
@@ -105,6 +112,32 @@ const EnvironmentSelector = () => {
             className="py-1"
           />
         </div>
+
+        {/* Tint Strength slider - only visible when an environment is selected */}
+        {selectedEnvironment && (
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs text-gray-300">
+                Color Tint Strength
+              </label>
+              <span className="text-xs text-gray-400">
+                {Math.round(environmentTintStrength * 100)}%
+              </span>
+            </div>
+            <Slider
+              defaultValue={[environmentTintStrength]}
+              value={[environmentTintStrength]}
+              max={1}
+              step={0.01}
+              onValueChange={handleTintStrengthChange}
+              className="py-1"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Adjusts how much the environment is tinted to match your color
+              palette.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-2 p-2 bg-gray-800 rounded-md">
