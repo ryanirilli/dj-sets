@@ -1,6 +1,7 @@
 import { useSceneContext } from "@/contexts/SceneContext";
 import { useState, useEffect, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 
 // Define available environments
 const environments = [
@@ -118,18 +119,15 @@ const EnvironmentSelector = () => {
     <div className="flex flex-col space-y-4">
       <div className="flex flex-wrap gap-2">
         {environments.map((env) => (
-          <button
+          <Button
             key={env.id || "none"}
-            className={`px-3 py-1.5 rounded-md text-sm ${
-              selectedEnvironment === env.id
-                ? "bg-blue-500 text-white"
-                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-            }`}
+            variant={selectedEnvironment === env.id ? "default" : "secondary"}
+            size="sm"
             onClick={() => setSelectedEnvironment(env.id)}
             title={env.description}
           >
             {env.name}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -138,10 +136,10 @@ const EnvironmentSelector = () => {
         {/* Blurriness slider - always visible */}
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="text-xs text-gray-300">
+            <label className="text-xs text-foreground">
               Background Blurriness
             </label>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {Math.round(localBlurriness * 100)}%
             </span>
           </div>
@@ -157,8 +155,10 @@ const EnvironmentSelector = () => {
         {/* Opacity slider - always visible */}
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="text-xs text-gray-300">Environment Opacity</label>
-            <span className="text-xs text-gray-400">
+            <label className="text-xs text-foreground">
+              Environment Opacity
+            </label>
+            <span className="text-xs text-muted-foreground">
               {Math.round(localIntensity * 100)}%
             </span>
           </div>
@@ -175,10 +175,10 @@ const EnvironmentSelector = () => {
         {selectedEnvironment && (
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="text-xs text-gray-300">
+              <label className="text-xs text-foreground">
                 Color Tint Strength
               </label>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted-foreground">
                 {Math.round(localTintStrength * 100)}%
               </span>
             </div>
@@ -189,7 +189,7 @@ const EnvironmentSelector = () => {
               onValueChange={handleTintStrengthChange}
               className="py-1"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Adjusts how much the environment is tinted to match your color
               palette.
             </p>
@@ -197,15 +197,15 @@ const EnvironmentSelector = () => {
         )}
       </div>
 
-      <div className="mt-2 p-2 bg-gray-800 rounded-md">
-        <p className="text-xs text-gray-400 mb-1">
+      <div className="mt-2 p-2 bg-muted rounded-md">
+        <p className="text-xs text-muted-foreground mb-1">
           Current:{" "}
-          <span className="text-white font-medium">
+          <span className="text-foreground font-medium">
             {environments.find((env) => env.id === selectedEnvironment)?.name ||
               "None"}
           </span>
         </p>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           HDR environments provide realistic lighting and reflections for your
           3D scene.
         </p>

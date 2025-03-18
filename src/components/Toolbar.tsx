@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
 import AudioSelector from "./AudioSelector";
@@ -8,6 +8,8 @@ import { VisualizerType } from "@/types/visualizers";
 import { getVisualizers } from "@/lib/visualizer-registry";
 import { Progress } from "@/components/ui/progress";
 import { FaPlay, FaPause, FaBars, FaTimes } from "react-icons/fa";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -42,9 +44,6 @@ export const Toolbar = ({
     setShowGrid,
     autoRotateColors,
     setAutoRotateColors,
-    environment,
-    backgroundBlurriness,
-    backgroundIntensity,
     showPerformanceStats,
     togglePerformanceStats,
   } = useSceneContext();
@@ -99,7 +98,7 @@ export const Toolbar = ({
       {/* Main Container */}
       <div className="relative">
         {/* Time and Duration Display - Now above the progress bar */}
-        <div className="flex justify-between px-4 py-1 text-xs text-gray-400 bg-black/80">
+        <div className="flex justify-between px-4 py-1 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm">
           <span>{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
         </div>
@@ -112,57 +111,61 @@ export const Toolbar = ({
         >
           <Progress
             value={progressPercentage}
-            className="h-1 rounded-none bg-gray-800"
+            className="h-1 rounded-none bg-muted"
           />
         </div>
 
         {/* Bottom Menu Bar - Horizontally aligned with play controls and menu toggle */}
-        <div className="flex items-center justify-between p-3 bg-black/80 backdrop-blur-md border-t border-gray-800">
+        <div className="flex items-center justify-between p-3 bg-background/80 backdrop-blur-md border-t border-border">
           {/* Empty space on the left for balance */}
           <div className="flex-1"></div>
 
           {/* Play/Pause Button in center */}
           <div className="flex-1 flex justify-center">
-            <button
+            <Button
               onClick={() => {
                 console.log("Play button clicked");
                 togglePlayPause();
               }}
-              className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full ring-1 ring-inset ring-white/10 transition-all duration-200"
+              size="icon"
+              variant="default"
+              className="w-12 h-12 rounded-full"
             >
               {isPlaying ? (
                 <FaPause size={18} />
               ) : (
                 <FaPlay size={18} className="ml-1" />
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Menu Toggle Button with Sheet */}
           <div className="flex-1 flex justify-end">
-            <button
+            <Button
               onClick={() => setIsOpen(true)}
-              className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg ring-1 ring-inset ring-white/10 transition-all duration-200"
+              variant="secondary"
+              size="icon"
             >
               <FaBars size={16} />
-            </button>
+            </Button>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetContent
                 side="right"
-                className="w-full max-w-md p-0 flex flex-col h-full backdrop-blur-xl bg-black/60 dark:bg-gray-900/80 border-l border-white/10 dark:border-gray-800/40"
+                className="w-full max-w-md p-0 flex flex-col h-full bg-sidebar/80 backdrop-blur-md border-l border-border"
               >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Settings</SheetTitle>
                 </SheetHeader>
 
                 {/* Main content area with scrolling */}
-                <div className="flex-1 overflow-y-auto pb-16">
-                  <div className="divide-y divide-white/10 dark:divide-gray-800/50">
+                <div className="flex-1 overflow-y-auto pb-16 custom-scrollbar">
+                  <div>
                     {/* Visualizers Section */}
-                    <div className="border-b border-white/10 dark:border-gray-800/50">
-                      <button
+                    <div>
+                      <Button
                         onClick={() => handleSectionToggle("visualizers")}
-                        className="flex justify-between items-center w-full py-4 px-4 font-medium text-foreground"
+                        variant="ghost"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Visualizers
                         <svg
@@ -181,7 +184,7 @@ export const Toolbar = ({
                             d="M19 9l-7 7-7-7"
                           />
                         </svg>
-                      </button>
+                      </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.visualizers
@@ -191,30 +194,32 @@ export const Toolbar = ({
                       >
                         <div className="flex flex-wrap gap-2 pt-2 px-4">
                           {visualizers.map((visualizer) => (
-                            <button
+                            <Button
                               key={visualizer.id}
-                              className={`px-3 py-1.5 rounded-md text-sm ${
+                              variant={
                                 selectedVisualizer === visualizer.id
-                                  ? "bg-blue-500/70 text-white"
-                                  : "bg-gray-700/70 text-gray-200"
-                              } shadow-sm`}
+                                  ? "default"
+                                  : "secondary"
+                              }
+                              size="sm"
                               onClick={() => {
                                 onVisualizerChange(visualizer.id);
                               }}
                               title={visualizer.description}
                             >
                               {visualizer.name}
-                            </button>
+                            </Button>
                           ))}
                         </div>
                       </div>
                     </div>
 
                     {/* Environment Section */}
-                    <div className="border-b border-white/10 dark:border-gray-800/50">
-                      <button
+                    <div>
+                      <Button
                         onClick={() => handleSectionToggle("environment")}
-                        className="flex justify-between items-center w-full py-4 px-4 font-medium text-foreground"
+                        variant="ghost"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Environment
                         <svg
@@ -233,7 +238,7 @@ export const Toolbar = ({
                             d="M19 9l-7 7-7-7"
                           />
                         </svg>
-                      </button>
+                      </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.environment
@@ -248,10 +253,11 @@ export const Toolbar = ({
                     </div>
 
                     {/* Color Palette Section */}
-                    <div className="border-b border-white/10 dark:border-gray-800/50">
-                      <button
+                    <div>
+                      <Button
                         onClick={() => handleSectionToggle("colors")}
-                        className="flex justify-between items-center w-full py-4 px-4 font-medium text-foreground"
+                        variant="ghost"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Color Palette
                         <svg
@@ -270,7 +276,7 @@ export const Toolbar = ({
                             d="M19 9l-7 7-7-7"
                           />
                         </svg>
-                      </button>
+                      </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.colors
@@ -279,21 +285,14 @@ export const Toolbar = ({
                         }`}
                       >
                         <div className="flex flex-col space-y-4 pt-2 px-4">
-                          <div className="flex items-center">
-                            <label className="inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={autoRotateColors}
-                                onChange={(e) =>
-                                  setAutoRotateColors(e.target.checked)
-                                }
-                              />
-                              <div className="relative w-11 h-6 bg-gray-700/70 backdrop-blur-md peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500/70 shadow-inner"></div>
-                              <span className="ms-3 text-sm font-medium text-gray-300">
-                                Auto-Cycle Colors
-                              </span>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                              Auto-Cycle Colors
                             </label>
+                            <Switch
+                              checked={autoRotateColors}
+                              onCheckedChange={setAutoRotateColors}
+                            />
                           </div>
                           <div className="h-64">
                             <ColorPaletteSelector />
@@ -303,10 +302,11 @@ export const Toolbar = ({
                     </div>
 
                     {/* Camera Settings Section */}
-                    <div className="border-b border-white/10 dark:border-gray-800/50">
-                      <button
+                    <div>
+                      <Button
                         onClick={() => handleSectionToggle("camera")}
-                        className="flex justify-between items-center w-full py-4 px-4 font-medium text-foreground"
+                        variant="ghost"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Camera Settings
                         <svg
@@ -325,7 +325,7 @@ export const Toolbar = ({
                             d="M19 9l-7 7-7-7"
                           />
                         </svg>
-                      </button>
+                      </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.camera
@@ -334,51 +334,34 @@ export const Toolbar = ({
                         }`}
                       >
                         <div className="flex flex-col space-y-4 pt-2 px-4">
-                          <div className="flex items-center">
-                            <label className="inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={autoRotate}
-                                onChange={(e) =>
-                                  setAutoRotate(e.target.checked)
-                                }
-                              />
-                              <div className="relative w-11 h-6 bg-gray-700/70 backdrop-blur-md peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500/70 shadow-inner"></div>
-                              <span className="ms-3 text-sm font-medium text-gray-300">
-                                Auto-Rotate
-                              </span>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                              Auto-Rotate
                             </label>
+                            <Switch
+                              checked={autoRotate}
+                              onCheckedChange={setAutoRotate}
+                            />
                           </div>
 
-                          <div className="flex items-center">
-                            <label className="inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={showGrid}
-                                onChange={(e) => setShowGrid(e.target.checked)}
-                              />
-                              <div className="relative w-11 h-6 bg-gray-700/70 backdrop-blur-md peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500/70 shadow-inner"></div>
-                              <span className="ms-3 text-sm font-medium text-gray-300">
-                                Show Grid
-                              </span>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                              Show Grid
                             </label>
+                            <Switch
+                              checked={showGrid}
+                              onCheckedChange={setShowGrid}
+                            />
                           </div>
 
-                          <div className="flex items-center">
-                            <label className="inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={showPerformanceStats}
-                                onChange={togglePerformanceStats}
-                              />
-                              <div className="relative w-11 h-6 bg-gray-700/70 backdrop-blur-md peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500/70 shadow-inner"></div>
-                              <span className="ms-3 text-sm font-medium text-gray-300">
-                                Show Performance Stats
-                              </span>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                              Show Performance Stats
                             </label>
+                            <Switch
+                              checked={showPerformanceStats}
+                              onCheckedChange={togglePerformanceStats}
+                            />
                           </div>
                         </div>
                       </div>
@@ -386,9 +369,10 @@ export const Toolbar = ({
 
                     {/* Audio Section */}
                     <div>
-                      <button
+                      <Button
                         onClick={() => handleSectionToggle("audio")}
-                        className="flex justify-between items-center w-full py-4 px-4 font-medium text-foreground"
+                        variant="ghost"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Audio
                         <svg
@@ -407,7 +391,7 @@ export const Toolbar = ({
                             d="M19 9l-7 7-7-7"
                           />
                         </svg>
-                      </button>
+                      </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.audio
@@ -427,9 +411,11 @@ export const Toolbar = ({
                 </div>
 
                 {/* Fixed footer with close button */}
-                <div className="sticky bottom-0 left-0 right-0 p-3 backdrop-blur-2xl bg-white/20 dark:bg-gray-900/40 border-t border-white/20 dark:border-gray-800/30 flex items-center justify-end">
-                  <SheetClose className="bg-white/15 text-white p-2 rounded-lg ring-1 ring-inset ring-white/15">
-                    <FaTimes size={16} />
+                <div className="sticky bottom-0 left-0 right-0 p-3 backdrop-blur-md bg-sidebar/80 border-t border-border flex items-center justify-end">
+                  <SheetClose asChild>
+                    <Button variant="secondary" size="icon">
+                      <FaTimes size={16} />
+                    </Button>
                   </SheetClose>
                 </div>
               </SheetContent>
