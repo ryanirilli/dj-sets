@@ -360,8 +360,8 @@ const EmissionPlane = () => {
       visible={false} // Hide the plane in production
       renderOrder={-1} // Ensure it renders behind particles
     >
-      <planeGeometry args={[4, 4, 4, 4]} />{" "}
-      {/* Reduced from 8x8 to 4x4 for better scale */}
+      <circleGeometry args={[2, 32]} />{" "}
+      {/* Changed from planeGeometry to circleGeometry */}
       <meshBasicMaterial // Use basic material instead of standard for better performance
         color="#444"
         transparent
@@ -778,26 +778,15 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         activeAttr.setX(i, 1.0);
         burstTimeAttr.setX(i, currentTime);
 
-        // Set initial position - random position on the emission plane
-        // Use the full emission plane dimensions (4x4) - reduced from 8x8
-        const planeSize = 4; // Reduced from 8 to 4
-        const halfSize = planeSize / 2;
+        // Set initial position - random position on the circular emission plane
+        // Generate points in a circle rather than a square
+        const radius = 2; // Circular emission radius
+        const angle = Math.random() * Math.PI * 2;
 
-        // Create a more interesting distribution pattern
-        let posX, posZ;
-
-        // 70% of particles - distributed across the entire plane
-        if (Math.random() < 0.7) {
-          posX = Math.random() * planeSize - halfSize;
-          posZ = Math.random() * planeSize - halfSize;
-        }
-        // 30% of particles - concentrated more toward the center for a denser core
-        else {
-          const angle = Math.random() * Math.PI * 2;
-          const radius = Math.random() * Math.random() * halfSize; // Quadratic distribution
-          posX = Math.cos(angle) * radius;
-          posZ = Math.sin(angle) * radius;
-        }
+        // Use square root for radius to ensure uniform distribution across the circle
+        const pointRadius = Math.sqrt(Math.random()) * radius;
+        const posX = Math.cos(angle) * pointRadius;
+        const posZ = Math.sin(angle) * pointRadius;
 
         // Position exactly at the plane level (y = 0)
         const posY = 0;
@@ -818,7 +807,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
 
         // Calculate outward direction - slight bias toward center for better visual
         const distanceFromCenter = Math.sqrt(posX * posX + posZ * posZ);
-        const centerBias = Math.min(1.0, distanceFromCenter / halfSize);
+        const centerBias = Math.min(1.0, distanceFromCenter / radius);
 
         // Particles further from center get more inward velocity
         const dirX = posX === 0 ? 0 : -Math.sign(posX) * centerBias * 0.5;
