@@ -211,28 +211,28 @@ const vertexShader = `
     float noiseZ2 = snoise(noisePos * 2.0 + vec3(67.89, 12.34, 56.78));
     
     // Calculate upward movement - enhanced shooting motion in early life
-    // 1. Base upward velocity from initial velocity - REDUCED for lower height
-    float baseUpwardVelocity = aVelocity.y * 1.0; // Reduced from 2.0 to 1.0 for lower height
+    // 1. Base upward velocity from initial velocity - REDUCED for more horizontal spread
+    float baseUpwardVelocity = aVelocity.y * 0.7; // Reduced from 1.0 to 0.7 to allow more horizontal movement
     
     // 2. Age-based acceleration - particles shoot up quickly then slow down
     // Enhanced early acceleration for more dramatic shooting effect
     float ageAcceleration;
     if (normalizedAge < 0.15) { // Reduced from 0.2 to 0.15 for faster initial acceleration
       // Strong initial acceleration for shooting effect
-      ageAcceleration = 1.0 - normalizedAge * 0.5; // Reduced from 1.2 to 1.0
+      ageAcceleration = 0.85 - normalizedAge * 0.5; // Reduced from 1.0 to 0.85
     } else {
       // Normal deceleration after initial burst
-      ageAcceleration = 0.8 * (1.0 - (normalizedAge - 0.15) * 0.5); // Increased deceleration
+      ageAcceleration = 0.6 * (1.0 - (normalizedAge - 0.15) * 0.5); // Reduced from 0.8 to 0.6
     }
     
     // 3. Early-age boost for initial shooting effect (not audio reactive)
-    float earlyAgeBoost = max(0.0, 0.3 - normalizedAge) * 1.5; // Reduced from 3.0 to 1.5
+    float earlyAgeBoost = max(0.0, 0.3 - normalizedAge) * 1.2; // Reduced from 1.5 to 1.2
     
     // Combine for total upward movement - enhanced shooting effect
     float totalUpwardMovement = (baseUpwardVelocity * ageAcceleration + earlyAgeBoost) * age;
     
     // SCALE DOWN the total upward movement to keep particles in view
-    totalUpwardMovement *= 0.6; // Scale factor to keep particles lower
+    totalUpwardMovement *= 0.5; // Further reduced from 0.6 to 0.5
     
     // Apply upward movement from initial velocity and calculated movement
     pos.y += totalUpwardMovement;
@@ -240,25 +240,43 @@ const vertexShader = `
     // Add a height limit to keep particles in view
     pos.y = min(pos.y, 3.0); // Limit maximum height to 3.0 units
     
-    // Apply horizontal movement from initial velocity - reduced in early life for straighter shooting
-    float horizontalFactor = min(1.0, normalizedAge * 5.0); // Gradually increase horizontal movement
-    pos.x += aVelocity.x * age * horizontalFactor * 0.7; // Reduced by 30%
-    pos.z += aVelocity.z * age * horizontalFactor * 0.7; // Reduced by 30%
+    // Apply horizontal movement from initial velocity - INCREASED for more spread
+    float horizontalFactor = min(1.0, normalizedAge * 3.0); // Increased from 5.0 to 3.0 for earlier horizontal movement
+    pos.x += aVelocity.x * age * horizontalFactor * 1.5; // Increased from 0.7 to 1.5 for more spread
+    pos.z += aVelocity.z * age * horizontalFactor * 1.5; // Increased from 0.7 to 1.5 for more spread
     
-    // Apply natural horizontal movement from noise - reduced in early life for straighter shooting
-    float turbulenceStrength = aTurbulence * 0.5 * horizontalFactor; // Reduced from 0.7 to 0.5
+    // Apply natural horizontal movement from noise - INCREASED for more dynamic floating
+    float turbulenceStrength = aTurbulence * 1.2 * horizontalFactor; // Increased from 0.5 to 1.2
     
-    // Apply noise-based movement for natural floating - reduced early for shooting effect
-    pos.x += noiseX * turbulenceStrength * age * 0.5; // Reduced from 0.6 to 0.5
-    pos.z += noiseZ * turbulenceStrength * age * 0.5; // Reduced from 0.6 to 0.5
+    // Apply noise-based movement for natural floating - INCREASED for more dynamic motion
+    pos.x += noiseX * turbulenceStrength * age * 1.0; // Increased from 0.5 to 1.0
+    pos.z += noiseZ * turbulenceStrength * age * 1.0; // Increased from 0.5 to 1.0
     
-    // Apply secondary noise for more complex movement - reduced early for shooting effect
-    pos.x += noiseX2 * turbulenceStrength * age * 0.25; // Reduced from 0.3 to 0.25
-    pos.z += noiseZ2 * turbulenceStrength * age * 0.25; // Reduced from 0.3 to 0.25
+    // Apply secondary noise for more complex movement - INCREASED for more complexity
+    pos.x += noiseX2 * turbulenceStrength * age * 0.6; // Increased from 0.25 to 0.6
+    pos.z += noiseZ2 * turbulenceStrength * age * 0.6; // Increased from 0.25 to 0.6
     
-    // Add slight sinusoidal movement for more floating effect - reduced early for shooting effect
-    pos.x += sin(age * (0.2 + aOffset * 0.1)) * 0.06 * age * horizontalFactor; // Reduced from 0.08 to 0.06
-    pos.z += cos(age * (0.15 + aOffset * 0.05)) * 0.06 * age * horizontalFactor; // Reduced from 0.08 to 0.06
+    // Add enhanced sinusoidal movement for more floating effect - INCREASED amplitude
+    pos.x += sin(age * (0.4 + aOffset * 0.2)) * 0.15 * age * horizontalFactor; // Increased from 0.06 to 0.15 and changed frequency
+    pos.z += cos(age * (0.3 + aOffset * 0.15)) * 0.15 * age * horizontalFactor; // Increased from 0.06 to 0.15 and changed frequency
+    
+    // Add NEW figure-8 pattern movement for more interesting floating
+    float figure8Strength = 0.08 * age * horizontalFactor;
+    pos.x += sin(age * (0.2 + aOffset * 0.05)) * cos(age * (0.3 + aOffset * 0.1)) * figure8Strength;
+    pos.z += cos(age * (0.2 + aOffset * 0.05)) * sin(age * (0.3 + aOffset * 0.1)) * figure8Strength;
+    
+    // Add NEW vortex swirl effect for more interesting particle behavior
+    float swirl = smoothstep(0.0, 0.3, normalizedAge) * (1.0 - smoothstep(0.7, 1.0, normalizedAge));
+    float swirlStrength = 0.3 * swirl;
+    float swirlRadius = length(vec2(pos.x, pos.z));
+    float swirlAngle = atan(pos.z, pos.x) + (0.2 + aOffset * 0.1) * age;
+    vec2 swirlVector = vec2(cos(swirlAngle), sin(swirlAngle)) * swirlStrength * swirlRadius;
+    pos.x += swirlVector.x * age;
+    pos.z += swirlVector.y * age;
+    
+    // Add NEW gravity effect to make particles float down after peak
+    float gravityEffect = max(0.0, normalizedAge - 0.6) * 0.04;
+    pos.y -= gravityEffect * age * age;
     
     // Individualized fade-out for each particle
     float fadeStart = aFadeStart;
@@ -783,10 +801,42 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         const radius = 2; // Circular emission radius
         const angle = Math.random() * Math.PI * 2;
 
-        // Use square root for radius to ensure uniform distribution across the circle
-        const pointRadius = Math.sqrt(Math.random()) * radius;
-        const posX = Math.cos(angle) * pointRadius;
-        const posZ = Math.sin(angle) * pointRadius;
+        // NEW: Add multiple emission points and patterns
+        let posX, posZ;
+        const emissionPattern = Math.random();
+
+        if (emissionPattern < 0.4) {
+          // Standard circular emission - use square root for radius to ensure uniform distribution
+          const pointRadius = Math.sqrt(Math.random()) * radius * 0.8;
+          posX = Math.cos(angle) * pointRadius;
+          posZ = Math.sin(angle) * pointRadius;
+        } else if (emissionPattern < 0.7) {
+          // Ring emission - particles start from outer ring
+          const ringWidth = 0.2 + Math.random() * 0.3;
+          const pointRadius = radius * (0.7 + ringWidth * Math.random());
+          posX = Math.cos(angle) * pointRadius;
+          posZ = Math.sin(angle) * pointRadius;
+        } else if (emissionPattern < 0.9) {
+          // Scattered points - creates small clusters of particles
+          const clusterCount = 5;
+          const clusterIndex = Math.floor(Math.random() * clusterCount);
+          const clusterAngle = (clusterIndex / clusterCount) * Math.PI * 2;
+          const clusterRadius = radius * 0.6;
+          const offsetRadius = Math.random() * radius * 0.4;
+          const offsetAngle = Math.random() * Math.PI * 2;
+
+          posX =
+            Math.cos(clusterAngle) * clusterRadius +
+            Math.cos(offsetAngle) * offsetRadius;
+          posZ =
+            Math.sin(clusterAngle) * clusterRadius +
+            Math.sin(offsetAngle) * offsetRadius;
+        } else {
+          // Center emission - more particles from center
+          const pointRadius = Math.pow(Math.random(), 2) * radius * 0.5;
+          posX = Math.cos(angle) * pointRadius;
+          posZ = Math.sin(angle) * pointRadius;
+        }
 
         // Position exactly at the plane level (y = 0)
         const posY = 0;
@@ -797,59 +847,116 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         ) as THREE.BufferAttribute;
         positionAttr.setXYZ(i, posX, posY, posZ);
 
-        // Set initial velocity - reduced upward velocity for better scale
+        // Set initial velocity - MODIFIED for more varied behavior
         const velocityAttr = geometry.getAttribute(
           "aVelocity"
         ) as THREE.BufferAttribute;
 
-        // Reduced upward velocity for better scale
-        const upwardVelocity = 1.5 + Math.random() * 1.0; // Reduced from 3.0+2.0 to 1.5+1.0
+        // More varied upward velocity
+        const upwardVelocity = 1.2 + Math.random() * 1.5; // Modified from 1.5+1.0 to 1.2+1.5
 
-        // Calculate outward direction - slight bias toward center for better visual
+        // Calculate outward direction - INCREASED outward movement
         const distanceFromCenter = Math.sqrt(posX * posX + posZ * posZ);
         const centerBias = Math.min(1.0, distanceFromCenter / radius);
 
-        // Particles further from center get more inward velocity
-        const dirX = posX === 0 ? 0 : -Math.sign(posX) * centerBias * 0.5;
-        const dirZ = posZ === 0 ? 0 : -Math.sign(posZ) * centerBias * 0.5;
+        // MORE outward velocity for particles, less inward bias
+        const dirFactor = centerBias * (0.2 + Math.random() * 0.3);
+        const dirX =
+          posX === 0
+            ? 0
+            : (Math.random() < 0.3 ? -Math.sign(posX) : Math.sign(posX)) *
+              dirFactor;
+        const dirZ =
+          posZ === 0
+            ? 0
+            : (Math.random() < 0.3 ? -Math.sign(posZ) : Math.sign(posZ)) *
+              dirFactor;
 
-        // Outward factor varies based on distance from center
-        const outwardFactor = 0.05 + Math.random() * 0.1; // Reduced from 0.15 to 0.1
+        // Outward factor INCREASED for more horizontal spread
+        const outwardFactor = 0.15 + Math.random() * 0.2; // Increased from 0.05+0.1 to 0.15+0.2
 
-        // Create velocity vector - stronger upward component for shooting effect
-        const vx = dirX * outwardFactor;
-        const vy = upwardVelocity;
-        const vz = dirZ * outwardFactor;
+        // NEW: Add swirl variant types for more diverse movement
+        const swirlType = Math.floor(Math.random() * 4); // 0-3 swirl types
+        let swirling = 0.0;
+        if (swirlType === 0) {
+          // Standard swirl - clockwise
+          swirling = 0.3 + Math.random() * 0.2;
+        } else if (swirlType === 1) {
+          // Counter-clockwise swirl - stronger
+          swirling = -(0.35 + Math.random() * 0.25);
+        } else if (swirlType === 2) {
+          // Pulsing swirl - changes direction
+          swirling = 0.3 * Math.sin(currentTime * 0.2 + i * 5.0); // Using particle index instead of aOffset
+        } else {
+          // No swirl - more random movement
+          swirling = 0;
+        }
+
+        const swirlStrength = swirling * (0.3 + Math.random() * 0.1);
+        const swirlTime = currentTime * (0.2 + Math.random() * 0.1) + i * 0.01; // Using particle index instead of aOffset
+        const dirVx = Math.cos(swirlTime) * swirlStrength;
+        const dirVz = Math.sin(swirlTime) * swirlStrength;
+
+        // Create initial velocity vector - MORE SPREAD and directional variety
+        const vx = dirX * outwardFactor + dirVx + (Math.random() - 0.5) * 0.5;
+        const vy = upwardVelocity * (0.8 + Math.random() * 0.4); // Varied upward velocity
+        const vz = dirZ * outwardFactor + dirVz + (Math.random() - 0.5) * 0.5;
 
         // Set both velocity and initial velocity
         velocityAttr.setXYZ(i, vx, vy, vz);
         initialVelocityAttr.setXYZ(i, vx, vy, vz);
 
-        // Set color based on frequency bands - even brighter colors for beat particles
+        // Set color based on frequency bands - NEW: more varied color strategies
         const bandType = ["low", "mid", "high"][
           Math.floor(Math.random() * 3)
         ] as "low" | "mid" | "high";
+
+        // Add color variation and intensity based on emission pattern
+        let colorBrightness = 2.2; // Base brightness
+        let colorVariation = 0;
+
+        // Vary colors based on emission pattern
+        if (emissionPattern < 0.4) {
+          // Standard pattern - normal brightness
+          colorBrightness = 2.0 + Math.random() * 0.4;
+        } else if (emissionPattern < 0.7) {
+          // Ring pattern - brighter colors
+          colorBrightness = 2.3 + Math.random() * 0.5;
+          colorVariation = 0.1;
+        } else if (emissionPattern < 0.9) {
+          // Cluster pattern - most intense colors
+          colorBrightness = 2.5 + Math.random() * 0.5;
+          colorVariation = 0.2;
+        } else {
+          // Center pattern - softer colors
+          colorBrightness = 1.8 + Math.random() * 0.4;
+          colorVariation = -0.1;
+        }
+
         const [r, g, b] = getColorFromFrequencyBands(frequencyBands, bandType);
 
-        // Make beat particles much brighter for more dramatic effect
-        const brightness = 2.2; // Increased from 1.8 to 2.2 for even more visible beat particles
-        colorAttr.setXYZ(i, r * brightness, g * brightness, b * brightness);
+        // Apply color variation
+        const finalR = r * colorBrightness + colorVariation;
+        const finalG = g * colorBrightness + colorVariation;
+        const finalB = b * colorBrightness + colorVariation;
+
+        colorAttr.setXYZ(i, finalR, finalG, finalB);
 
         // Set random rotation
         rotationAttr.setX(i, Math.random() * Math.PI * 2);
 
-        // Shorter lifetime for better scale
-        const lifetime = 2.5 + Math.random() * 1.5; // Reduced from 3.5+2.0 to 2.5+1.5
+        // More varied lifetime for particles
+        const lifetime = 2.0 + Math.random() * 2.5; // Changed from 2.5+1.5 to 2.0+2.5 for more variation
         lifetimeAttr.setX(i, lifetime);
 
-        // Set fade parameters - slower fade for more visible shooting effect
-        const fadeStart = 0.8; // Reduced from 0.85 to 0.8
-        const fadeLength = 0.2; // Increased from 0.15 to 0.2 for smoother fade
+        // Set fade parameters - MORE varied for different particles
+        const fadeStart = 0.7 + Math.random() * 0.15; // Changed from fixed 0.8 to 0.7-0.85 range
+        const fadeLength = 0.15 + Math.random() * 0.15; // Changed from fixed 0.2 to 0.15-0.3 range
         fadeStartAttr.setX(i, fadeStart);
         fadeLengthAttr.setX(i, fadeLength);
 
-        // Set turbulence factor - less turbulence for more coherent shooting effect
-        const turbulence = 0.1 + Math.random() * 0.2; // Reduced from 0.15+0.25 to 0.1+0.2
+        // Set turbulence factor - INCREASED for more varied movement
+        const turbulence = 0.2 + Math.random() * 0.4; // Increased from 0.1+0.2 to 0.2+0.4
         turbulenceAttr.setX(i, turbulence);
 
         // Set frequency band influence
