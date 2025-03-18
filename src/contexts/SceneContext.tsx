@@ -365,7 +365,24 @@ const ColorTintedEnvironment = () => {
   // Skip if no environment is selected
   if (!environment) return null;
 
-  // Calculate average brightness of the palette
+  // Store initial values to debug any changes
+  const envRef = useRef({
+    intensity: backgroundIntensity,
+    tintStrength: environmentTintStrength,
+  });
+
+  // Debug when values change
+  useEffect(() => {
+    console.log(
+      `Environment values updated: intensity=${backgroundIntensity}, tintStrength=${environmentTintStrength}`
+    );
+    envRef.current = {
+      intensity: backgroundIntensity,
+      tintStrength: environmentTintStrength,
+    };
+  }, [backgroundIntensity, environmentTintStrength]);
+
+  // Calculate average brightness of the palette for tint color
   const calculateBrightness = (color: string) => {
     const c = new THREE.Color(color);
     return c.r * 0.299 + c.g * 0.587 + c.b * 0.114; // Perceived brightness formula
@@ -394,13 +411,8 @@ const ColorTintedEnvironment = () => {
     saturatedTint.lerp(new THREE.Color("#ffffff"), 0.3);
   }
 
-  // Use user-controlled tint strength but adjust it based on palette brightness
-  const baseTintStrength = environmentTintStrength;
-  // Apply a subtle adjustment based on brightness
-  const tintStrength =
-    averageBrightness > 0.5
-      ? baseTintStrength * 1.1 // Slightly stronger for bright palettes
-      : baseTintStrength * 0.9; // Slightly weaker for dark palettes
+  // Just use the raw tint strength directly - don't auto-adjust
+  const tintStrength = environmentTintStrength;
 
   // Use the second ref to animate transitions
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -411,26 +423,31 @@ const ColorTintedEnvironment = () => {
       // Smoothly transition to target color
       materialRef.current.color.lerp(saturatedTint, 0.05);
 
-      // Smoothly adjust opacity if needed
-      materialRef.current.opacity +=
-        (tintStrength - materialRef.current.opacity) * 0.05;
+      // Directly set opacity to match tint strength
+      materialRef.current.opacity = tintStrength;
     }
   });
 
+  // Use correct file path
+  const envPath = `/images/environments/${environment}`;
+
+  // Debug the intensity value
+  console.log(`Rendering environment with intensity: ${backgroundIntensity}`);
+
   return (
     <>
-      {/* Original environment */}
+      {/* Original environment - with direct intensity setting */}
       <Environment
-        files={`/images/environments/${environment}`}
+        files={envPath}
         background={true}
         backgroundBlurriness={backgroundBlurriness}
-        backgroundIntensity={backgroundIntensity}
+        backgroundIntensity={backgroundIntensity} // This directly controls opacity
         environmentIntensity={1.2}
         preset={undefined}
       />
 
-      {/* Color tint layer - only show if tint strength is > 0 AND environment is selected */}
-      {environmentTintStrength > 0 && environment && (
+      {/* Color tint layer - only show if tint strength > 0 */}
+      {environmentTintStrength > 0 && (
         <mesh renderOrder={-1000} scale={[100, 100, 100]}>
           <sphereGeometry args={[1, 32, 32]} />
           <meshBasicMaterial
@@ -636,6 +653,24 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
 
   // Automatically adjust environment settings based on color palette
   useEffect(() => {
+    // COMPLETELY DISABLED - Do not auto-adjust environment settings anymore
+    // Settings are now fully controlled by the user in EnvironmentSelector
+
+    // Log that an adjustment was attempted but skipped
+    console.log(
+      "Auto-adjustment of environment settings attempted but disabled"
+    );
+
+    // Original code is preserved in comments for reference
+    /*
+    // Only adjust automatically when first loading or changing palettes,
+    // not when the user manually changes the value via the slider
+    const userIsAdjustingManually = false; // Now controlled entirely by the slider
+
+    if (userIsAdjustingManually) {
+      return; // Skip automatic adjustments when user is controlling manually
+    }
+
     // For bright color palettes, reduce background intensity
     const isBrightPalette = colorPalette.colors.some((color) => {
       const c = new THREE.Color(color);
@@ -643,7 +678,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
       return c.r * 0.299 + c.g * 0.587 + c.b * 0.114 > 0.7;
     });
 
-    // Only make automatic adjustments if the values are at extremes
+    // Only apply automatic adjustment when initializing or changing palettes
+    // This now only happens when the color palette changes, not when background intensity changes
     if (isBrightPalette && backgroundIntensity > 0.7) {
       // Reduce intensity for extremely bright palettes only if it's set too high
       setBackgroundIntensity((prevIntensity) => Math.min(prevIntensity, 0.6));
@@ -651,7 +687,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
       // Increase intensity for dark palettes only if it's set too low
       setBackgroundIntensity((prevIntensity) => Math.max(prevIntensity, 0.4));
     }
-  }, [colorPalette, backgroundIntensity, setBackgroundIntensity]);
+    */
+  }, [colorPalette]); // Keep dependency array as is
 
   // Add performance stats to context
   const contextValue: SceneContextType = {

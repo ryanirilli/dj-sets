@@ -1,14 +1,14 @@
 import { useSceneContext } from "@/contexts/SceneContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
 
 // Define available environments
 const environments = [
   { id: null, name: "None", description: "No environment map" },
   {
-    id: "unfinished_office_1k.hdr",
-    name: "Office",
-    description: "Indoor office environment",
+    id: "rogland_clear_night_1k.hdr",
+    name: "Night Sky",
+    description: "Clear night environment with stars",
   },
   {
     id: "mud_road_puresky_1k.hdr",
@@ -28,30 +28,90 @@ const EnvironmentSelector = () => {
     environmentTintStrength,
     setEnvironmentTintStrength,
   } = useSceneContext();
+
+  // Local state for slider values - only used for UI rendering
+  const [localBlurriness, setLocalBlurriness] = useState(backgroundBlurriness);
+  const [localIntensity, setLocalIntensity] = useState(backgroundIntensity);
+  const [localTintStrength, setLocalTintStrength] = useState(
+    environmentTintStrength
+  );
   const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(
     environment
   );
 
-  // Update context when selection changes
+  // Store user's settings for when environments change
+  const userSettingsRef = useRef({
+    blurriness: backgroundBlurriness,
+    intensity: backgroundIntensity,
+    tintStrength: environmentTintStrength,
+  });
+
+  // Sync local states with context values
+  useEffect(() => {
+    setLocalBlurriness(backgroundBlurriness);
+  }, [backgroundBlurriness]);
+
+  useEffect(() => {
+    setLocalIntensity(backgroundIntensity);
+  }, [backgroundIntensity]);
+
+  useEffect(() => {
+    setLocalTintStrength(environmentTintStrength);
+  }, [environmentTintStrength]);
+
+  // Update environment when selection changes, preserving slider settings
   useEffect(() => {
     if (selectedEnvironment !== environment) {
+      // Save current settings
+      const savedSettings = userSettingsRef.current;
+
+      // Change the environment
       setEnvironment(selectedEnvironment);
+
+      // Apply saved settings after environment changes
+      requestAnimationFrame(() => {
+        setBackgroundBlurriness(savedSettings.blurriness);
+        setBackgroundIntensity(savedSettings.intensity);
+        setEnvironmentTintStrength(savedSettings.tintStrength);
+      });
     }
-  }, [selectedEnvironment, environment, setEnvironment]);
+  }, [
+    selectedEnvironment,
+    environment,
+    setEnvironment,
+    setBackgroundBlurriness,
+    setBackgroundIntensity,
+    setEnvironmentTintStrength,
+  ]);
 
-  // Handle blurriness slider change
+  // Optimized handler for blurriness slider
   const handleBlurrinessChange = (value: number[]) => {
-    setBackgroundBlurriness(value[0]);
+    const newValue = value[0];
+    // Update both local and context state
+    setLocalBlurriness(newValue);
+    setBackgroundBlurriness(newValue);
+    // Store in settings
+    userSettingsRef.current.blurriness = newValue;
   };
 
-  // Handle intensity slider change
+  // Optimized handler for intensity/opacity slider
   const handleIntensityChange = (value: number[]) => {
-    setBackgroundIntensity(value[0]);
+    const newValue = value[0];
+    // Update both local and context state
+    setLocalIntensity(newValue);
+    setBackgroundIntensity(newValue);
+    // Store in settings
+    userSettingsRef.current.intensity = newValue;
   };
 
-  // Handle tint strength slider change
+  // Optimized handler for tint strength slider
   const handleTintStrengthChange = (value: number[]) => {
-    setEnvironmentTintStrength(value[0]);
+    const newValue = value[0];
+    // Update both local and context state
+    setLocalTintStrength(newValue);
+    setEnvironmentTintStrength(newValue);
+    // Store in settings
+    userSettingsRef.current.tintStrength = newValue;
   };
 
   return (
@@ -82,12 +142,11 @@ const EnvironmentSelector = () => {
               Background Blurriness
             </label>
             <span className="text-xs text-gray-400">
-              {Math.round(backgroundBlurriness * 100)}%
+              {Math.round(localBlurriness * 100)}%
             </span>
           </div>
           <Slider
-            defaultValue={[backgroundBlurriness]}
-            value={[backgroundBlurriness]}
+            value={[localBlurriness]}
             max={1}
             step={0.01}
             onValueChange={handleBlurrinessChange}
@@ -95,17 +154,16 @@ const EnvironmentSelector = () => {
           />
         </div>
 
-        {/* Transparency/Intensity slider - always visible */}
+        {/* Opacity slider - always visible */}
         <div>
           <div className="flex justify-between items-center mb-1">
             <label className="text-xs text-gray-300">Environment Opacity</label>
             <span className="text-xs text-gray-400">
-              {Math.round(backgroundIntensity * 100)}%
+              {Math.round(localIntensity * 100)}%
             </span>
           </div>
           <Slider
-            defaultValue={[backgroundIntensity]}
-            value={[backgroundIntensity]}
+            value={[localIntensity]}
             max={1}
             step={0.01}
             onValueChange={handleIntensityChange}
@@ -121,12 +179,11 @@ const EnvironmentSelector = () => {
                 Color Tint Strength
               </label>
               <span className="text-xs text-gray-400">
-                {Math.round(environmentTintStrength * 100)}%
+                {Math.round(localTintStrength * 100)}%
               </span>
             </div>
             <Slider
-              defaultValue={[environmentTintStrength]}
-              value={[environmentTintStrength]}
+              value={[localTintStrength]}
               max={1}
               step={0.01}
               onValueChange={handleTintStrengthChange}
