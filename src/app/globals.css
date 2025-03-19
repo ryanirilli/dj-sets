@@ -39,11 +39,11 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* UI Control Colors */
-    --control-track: 214 32% 91%;
-    --control-active: 217 91.2% 59.8%;
+    --control-track: 270 60% 85%;
+    --control-active: 270 80% 40%;
     --control-foreground: 0 0% 100%;
     --control-thumb: 0 0% 100%;
-    --control-thumb-border: 214 32% 91%;
+    --control-thumb-border: 270 60% 85%;
   }
 
   html,
@@ -87,11 +87,11 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* UI Control Colors - Dark mode */
-    --control-track: 222 47% 11%;
-    --control-active: 217 91.2% 59.8%;
+    --control-track: 270 40% 20%;
+    --control-active: 270 70% 45%;
     --control-foreground: 0 0% 100%;
     --control-thumb: 0 0% 100%;
-    --control-thumb-border: 217 91.2% 59.8%;
+    --control-thumb-border: 270 70% 45%;
   }
 }
 
