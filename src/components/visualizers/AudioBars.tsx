@@ -97,13 +97,6 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
     return mapping;
   }, [count]);
 
-  // Cached color arrays for each color in the palette to avoid recreating
-  const colorArrayCache = useMemo(() => {
-    return threeColors.map(
-      (color) => new Float32Array([color.r, color.g, color.b])
-    );
-  }, [threeColors]);
-
   // Pre-compute color arrays for each position in the gradient
   const positionColorArrays = useMemo(() => {
     // Create 36 pre-computed color arrays (one for each bar)
@@ -242,7 +235,6 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
 
   // Update bars based on audio data
   // Use a consistent frame rate for animation
-  const frameSkipRef = useRef(0);
   const lastTimeRef = useRef(0);
   const animationSpeedRef = useRef(1 / 30); // Target 30fps for animations
 

@@ -8,7 +8,6 @@ import { VisualizerType } from "@/types/visualizers";
 import {
   getVisualizer,
   getDefaultVisualizer,
-  getVisualizers,
   cleanupVisualizer,
 } from "@/lib/visualizer-registry";
 import { registerAllVisualizers } from "@/components/visualizers";

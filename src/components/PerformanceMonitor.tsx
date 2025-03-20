@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import * as THREE from "three";
+import { WebGLRenderer, WebGLInfo } from "three";
 
 interface PerformanceStats {
   fps: number;
@@ -9,6 +9,10 @@ interface PerformanceStats {
     geometries: number;
     textures: number;
   };
+}
+
+interface ExtendedWebGLRenderer extends WebGLRenderer {
+  info: WebGLInfo;
 }
 
 const PerformanceMonitor = ({ visible = true }: { visible?: boolean }) => {
@@ -39,8 +43,9 @@ const PerformanceMonitor = ({ visible = true }: { visible?: boolean }) => {
 
         // Get memory info from renderer
         const memory = {
-          geometries: (gl as any).info?.memory?.geometries || 0,
-          textures: (gl as any).info?.memory?.textures || 0,
+          geometries:
+            (gl as ExtendedWebGLRenderer).info?.memory?.geometries || 0,
+          textures: (gl as ExtendedWebGLRenderer).info?.memory?.textures || 0,
         };
 
         setStats({ fps, memory });

@@ -53,12 +53,11 @@ const createSmokeTexture = () => {
 
   // Apply minimal blur for softer edges
   try {
-    // @ts-ignore - filter is available in most browsers
-    ctx.filter = "blur(3px)"; // Reduced from 4px to 3px for sharper particles
+    const ctxWithFilter = ctx as CanvasRenderingContext2D & { filter: string };
+    ctxWithFilter.filter = "blur(3px)"; // Reduced from 4px to 3px for sharper particles
     ctx.drawImage(canvas, 0, 0);
-    // @ts-ignore
-    ctx.filter = "none";
-  } catch (e) {
+    ctxWithFilter.filter = "none";
+  } catch {
     // Fallback if filter not supported
     console.log("Canvas filter not supported, skipping blur");
   }
@@ -424,22 +423,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   const beatDecayRef = useRef(0);
   const beatDecayRateRef = useRef(0.05);
 
-  // Cleanup function to dispose resources
-  const cleanupResources = useCallback(() => {
-    if (pointsRef.current) {
-      const geometry = pointsRef.current.geometry;
-      const material = pointsRef.current.material as THREE.ShaderMaterial;
-
-      if (geometry) geometry.dispose();
-      if (material) {
-        if (material.uniforms && material.uniforms.uTexture?.value) {
-          material.uniforms.uTexture.value.dispose();
-        }
-        material.dispose();
-      }
-    }
-  }, []);
-
   // Create smoke texture with caching
   const smokeTexture = useMemo(() => {
     // Use cached texture if available
@@ -650,7 +633,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   };
 
   // Get color palette
-  const { getShaderColor, threeColors } = useColorPalette();
+  const { threeColors } = useColorPalette();
 
   // Interpolate between two colors
   const lerpColor = useCallback(
@@ -986,11 +969,10 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   };
 
   // Update animation and audio reactivity
-  useFrame(({ clock, camera, controls }) => {
+  useFrame(({ clock }) => {
     if (!pointsRef.current || !activeArray || !audioData) return;
 
     const currentTime = clock.getElapsedTime();
-    const deltaTime = Math.min(clock.getDelta(), 0.1);
 
     // Update time uniform
     if (uniforms && uniforms.uTime) {

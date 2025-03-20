@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, Preload, Environment, Stats } from "@react-three/drei";
+import { OrbitControls, Preload, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import { createContext, useContext } from "react";
 import {
@@ -9,7 +9,6 @@ import {
   getColorPaletteById,
   getColorPalettes,
 } from "@/types/colorPalettes";
-import { useAudio } from "./AudioContext";
 import StatsDisplay from "@/components/StatsDisplay";
 
 // Force render component to ensure continuous animation
@@ -28,20 +27,9 @@ const AutoRotateManager = ({ autoRotate }: { autoRotate: boolean }) => {
   const { scene } = useThree();
 
   useFrame(() => {
-    // Find the OrbitControls instance in the scene
-    const orbitControls = scene.userData.controls;
-
-    if (orbitControls) {
-      // Set the autoRotate property directly
-      orbitControls.autoRotate = autoRotate;
+    if (autoRotate) {
+      scene.rotation.y += 0.001;
     }
-
-    // Find all OrbitControls instances in the scene
-    scene.traverse((object) => {
-      if (object.userData && object.userData.controls) {
-        object.userData.controls.autoRotate = autoRotate;
-      }
-    });
   });
 
   return null;
@@ -51,48 +39,38 @@ const AutoRotateManager = ({ autoRotate }: { autoRotate: boolean }) => {
 const ResourceCleaner = () => {
   const { gl, scene } = useThree();
 
-  // Function to dispose of Three.js resources
-  const disposeObject = useCallback((obj: THREE.Object3D) => {
-    if (obj.children) {
-      // Recursively dispose of children
-      obj.children.forEach((child) => disposeObject(child));
+  // Cleanup function to dispose THREE.js objects to prevent memory leaks
+  const disposeObject = (obj: THREE.Object3D) => {
+    // Cast to Object3D with additional properties
+    const object = obj as unknown as {
+      geometry?: { dispose: () => void };
+      material?: { dispose: () => void } | Array<{ dispose: () => void }>;
+      children: THREE.Object3D[];
+    };
+
+    // Dispose geometry if exists
+    if (object.geometry) {
+      object.geometry.dispose();
     }
 
-    // Dispose of geometries
-    if ((obj as any).geometry) {
-      (obj as any).geometry.dispose();
+    // Dispose materials if exists
+    if (object.material) {
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+
+      materials.forEach((material) => {
+        // Dispose the material
+        material.dispose();
+      });
     }
 
-    // Dispose of materials
-    if ((obj as any).material) {
-      if (Array.isArray((obj as any).material)) {
-        (obj as any).material.forEach((material: THREE.Material) => {
-          disposeMaterial(material);
-        });
-      } else {
-        disposeMaterial((obj as any).material);
-      }
+    // Recursive cleanup for children
+    while (obj.children.length > 0) {
+      disposeObject(obj.children[0]);
+      obj.remove(obj.children[0]);
     }
-  }, []);
-
-  // Helper to dispose of material resources
-  const disposeMaterial = useCallback((material: THREE.Material) => {
-    // Dispose of textures
-    Object.keys(material).forEach((prop) => {
-      const value = material[prop as keyof THREE.Material];
-      if (
-        value &&
-        typeof value === "object" &&
-        "isTexture" in value &&
-        value.isTexture
-      ) {
-        value.dispose();
-      }
-    });
-
-    // Dispose of material itself
-    material.dispose();
-  }, []);
+  };
 
   // Clean up unused resources periodically
   useEffect(() => {
@@ -103,16 +81,24 @@ const ResourceCleaner = () => {
       // Log memory usage
       if (process.env.NODE_ENV === "development") {
         console.log("Memory usage:", {
-          geometries: (gl as any).info?.memory?.geometries || 0,
-          textures: (gl as any).info?.memory?.textures || 0,
+          geometries: gl.info?.memory?.geometries || 0,
+          textures: gl.info?.memory?.textures || 0,
         });
       }
     }, 10000); // Run every 10 seconds
 
     return () => {
       clearInterval(cleanupInterval);
+
+      // Dispose scene objects when component unmounts
+      scene.traverse((object: THREE.Object3D) => {
+        disposeObject(object);
+      });
+
+      // Clear caches
+      THREE.Cache.clear();
     };
-  }, [gl]);
+  }, [gl, scene]);
 
   return null;
 };
@@ -124,7 +110,7 @@ interface SceneProviderProps {
 
 // Custom lighting setup optimized for volumetric effects like smoke
 const SceneLighting = () => {
-  const { colorPalette, transitionProgress } = useSceneContext();
+  const { colorPalette } = useSceneContext();
 
   // Extract colors from the current palette
   const mainColor = colorPalette.colors[0]; // Primary color
@@ -310,42 +296,27 @@ const SceneContext = createContext<SceneContextType>({
 
 export const useSceneContext = () => useContext(SceneContext);
 
-// Component to collect renderer stats and update the ref
-const RendererStats = ({
-  infoRef,
-}: {
-  infoRef: React.MutableRefObject<any>;
-}) => {
+// Component to collect renderer stats
+const RendererStats = () => {
   const { gl } = useThree();
-  const frameCountRef = useRef(0);
-  const lastTimeRef = useRef(0);
+  const statsRef = useRef<{
+    fps: number;
+    memory: { geometries: number; textures: number };
+  }>({
+    fps: 0,
+    memory: { geometries: 0, textures: 0 },
+  });
 
-  useFrame((_, delta) => {
-    // Update FPS calculation
-    if (!lastTimeRef.current) {
-      lastTimeRef.current = performance.now();
-    }
-
-    frameCountRef.current++;
-    const currentTime = performance.now();
-    const elapsed = currentTime - lastTimeRef.current;
-
-    // Update stats every 500ms for smoother readings
-    if (elapsed >= 500) {
-      const fps = Math.round((frameCountRef.current * 1000) / elapsed);
-
-      // Get detailed renderer info
-      infoRef.current = {
-        fps,
-        geometries: gl.info?.memory?.geometries || 0,
-        textures: gl.info?.memory?.textures || 0,
-        triangles: gl.info?.render?.triangles || 0,
-        calls: gl.info?.render?.calls || 0,
+  useFrame(() => {
+    if (gl.info) {
+      const memory = gl.info.memory;
+      statsRef.current = {
+        fps: 0, // We're not tracking FPS here
+        memory: {
+          geometries: memory?.geometries || 0,
+          textures: memory?.textures || 0,
+        },
       };
-
-      // Reset counters
-      frameCountRef.current = 0;
-      lastTimeRef.current = currentTime;
     }
   });
 
@@ -362,14 +333,14 @@ const ColorTintedEnvironment = () => {
     environmentTintStrength,
   } = useSceneContext();
 
-  // Skip if no environment is selected
-  if (!environment) return null;
-
   // Store initial values to debug any changes
   const envRef = useRef({
     intensity: backgroundIntensity,
     tintStrength: environmentTintStrength,
   });
+
+  // Use the second ref to animate transitions regardless of whether environment is selected
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
 
   // Debug when values change
   useEffect(() => {
@@ -414,9 +385,6 @@ const ColorTintedEnvironment = () => {
   // Just use the raw tint strength directly - don't auto-adjust
   const tintStrength = environmentTintStrength;
 
-  // Use the second ref to animate transitions
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-
   // Smoothly transition the color when palette changes
   useFrame(() => {
     if (materialRef.current) {
@@ -427,6 +395,9 @@ const ColorTintedEnvironment = () => {
       materialRef.current.opacity = tintStrength;
     }
   });
+
+  // Skip if no environment is selected
+  if (!environment) return null;
 
   // Use correct file path
   const envPath = `/images/environments/${environment}`;
@@ -484,16 +455,10 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const lastTransitionTimeRef = useRef<number>(0);
   const rendererInfoRef = useRef<{
     fps: number;
-    geometries: number;
-    textures: number;
-    triangles: number;
-    calls: number;
+    memory: { geometries: number; textures: number };
   }>({
     fps: 0,
-    geometries: 0,
-    textures: 0,
-    triangles: 0,
-    calls: 0,
+    memory: { geometries: 0, textures: 0 },
   });
   const [environmentTintStrength, setEnvironmentTintStrength] = useState(0.5);
 
@@ -733,15 +698,19 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               alpha: false,
               stencil: false,
               depth: true,
-              // Add performance optimizations
-              logarithmicDepthBuffer: true, // Better depth precision
+              logarithmicDepthBuffer: true,
             }}
             frameloop="always"
-            performance={{ min: 0.5 }} // Allow frame rate to drop to 30fps under load
+            performance={{ min: 0.5 }}
+            style={{
+              width: "100%",
+              height: "100%",
+              touchAction: "none",
+            }}
+            dpr={[1, 2]} // Limit pixel ratio for better performance on high-DPI displays
           >
             {/* Set background color based on environment selection */}
             {environment ? (
-              /* When environment is selected, use palette-derived color */
               <color
                 attach="background"
                 args={[
@@ -751,7 +720,6 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
                 ]}
               />
             ) : (
-              /* When no environment is selected, use pure black */
               <color attach="background" args={["#000000"]} />
             )}
 
@@ -779,6 +747,14 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               target={[0, 0, 0]}
               enableDamping={true}
               dampingFactor={0.05}
+              enableZoom={true}
+              enablePan={true}
+              enableRotate={true}
+              // Add responsive controls
+              rotateSpeed={0.5}
+              zoomSpeed={0.5}
+              panSpeed={0.5}
+              screenSpacePanning={true}
             />
 
             {/* Add the auto-rotate manager to ensure the controls are updated */}
@@ -796,9 +772,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
             <ResourceCleaner />
 
             {/* Performance monitoring components - only use RendererStats to collect data */}
-            {showPerformanceStats && (
-              <RendererStats infoRef={rendererInfoRef} />
-            )}
+            {showPerformanceStats && <RendererStats />}
 
             <Preload all />
           </Canvas>
@@ -807,10 +781,10 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
           {showPerformanceStats && (
             <StatsDisplay
               fps={rendererInfoRef.current.fps}
-              geometries={rendererInfoRef.current.geometries}
-              textures={rendererInfoRef.current.textures}
-              triangles={rendererInfoRef.current.triangles}
-              calls={rendererInfoRef.current.calls}
+              geometries={rendererInfoRef.current.memory.geometries}
+              textures={rendererInfoRef.current.memory.textures}
+              triangles={0}
+              calls={0}
             />
           )}
         </div>

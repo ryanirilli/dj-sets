@@ -4,21 +4,21 @@ import { VisualizerProps } from "@/types/visualizers";
 import { registerVisualizer } from "@/lib/visualizer-registry";
 
 // Loading component that doesn't use JSX directly in the dynamic import
-const LoadingComponent = ({ name }: { name: string }) => {
+const LoadingComponent = () => {
   return <></>;
 };
 
 // Import visualizers with dynamic import to avoid SSR issues with Web Audio API
 const AudioBars = dynamic(() => import("@/components/visualizers/AudioBars"), {
   ssr: false,
-  loading: () => <LoadingComponent name="AudioBars" />,
+  loading: () => <LoadingComponent />,
 }) as React.ComponentType<VisualizerProps>;
 
 const SmokeVisualizer = dynamic(
   () => import("@/components/visualizers/SmokeVisualizer"),
   {
     ssr: false,
-    loading: () => <LoadingComponent name="SmokeVisualizer" />,
+    loading: () => <LoadingComponent />,
   }
 ) as React.ComponentType<VisualizerProps>;
 
@@ -26,7 +26,7 @@ const IcosahedronVisualizer = dynamic(
   () => import("@/components/visualizers/IcosahedronVisualizer"),
   {
     ssr: false,
-    loading: () => <LoadingComponent name="IcosahedronVisualizer" />,
+    loading: () => <LoadingComponent />,
   }
 ) as React.ComponentType<VisualizerProps>;
 

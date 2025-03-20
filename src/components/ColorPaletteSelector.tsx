@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { ColorPalette, getColorPalettes } from "@/types/colorPalettes";
+import { getColorPalettes } from "@/types/colorPalettes";
 import { useSceneContext } from "@/contexts/SceneContext";
 
 const ColorPaletteSelector = () => {

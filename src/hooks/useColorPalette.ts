@@ -1,5 +1,4 @@
 import { useSceneContext } from "@/contexts/SceneContext";
-import { ColorPalette } from "@/types/colorPalettes";
 import { useMemo } from "react";
 import * as THREE from "three";
 

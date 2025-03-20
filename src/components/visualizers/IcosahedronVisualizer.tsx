@@ -10,10 +10,8 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const { threeColors } = useColorPalette();
-  const [colorUpdateKey, setColorUpdateKey] = useState(0);
 
   // Animation state
-  const rotationSpeedRef = useRef(0.003);
   const [faceCount, setFaceCount] = useState(7); // Default to 7 faces
   const nextDetailChangeRef = useRef(0);
   const timeRef = useRef(0);
@@ -464,13 +462,16 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
       transparent: true,
       side: THREE.DoubleSide,
     });
-  }, [threeColors, colorUpdateKey]);
+  }, [threeColors]);
 
   // Cleanup function
   useEffect(() => {
+    // Copy materialRef.current to a variable inside the effect
+    const material = materialRef.current;
+
     return () => {
       geometries.forEach((geo) => geo.dispose());
-      if (materialRef.current) materialRef.current.dispose();
+      if (material) material.dispose();
     };
   }, [geometries]);
 
@@ -479,11 +480,6 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
     setFaceCount(7); // Start with 7 faces
     nextDetailChangeRef.current = 0;
   }, []);
-
-  // Update shader colors when palette changes
-  useEffect(() => {
-    setColorUpdateKey((prev) => prev + 1);
-  }, [threeColors]);
 
   return (
     <group>

@@ -1,4 +1,4 @@
-import { ReactNode, ComponentType } from "react";
+import { ComponentType } from "react";
 
 // Base interface for all visualizer props
 export interface VisualizerProps {

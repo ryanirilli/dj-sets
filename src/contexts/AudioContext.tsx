@@ -81,8 +81,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const initializeAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
       try {
-        audioContextRef.current = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
+        // Use AudioContext with a fallback to webkitAudioContext
+        const AudioContextClass =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext })
+            .webkitAudioContext;
+
+        audioContextRef.current = new AudioContextClass();
         analyserRef.current = audioContextRef.current.createAnalyser();
 
         // Reduce FFT size for better performance
@@ -282,7 +287,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateAudioData = useCallback(() => {
-    if (!analyserRef.current) return;
+    if (!analyserRef.current || !audioContextRef.current) return;
 
     const now = performance.now();
     // Throttle updates to reduce CPU usage
@@ -310,7 +315,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         );
 
         // Peak detection
-        const currentTimeSeconds = audioContextRef.current?.currentTime || 0;
+        const currentTimeSeconds = audioContextRef.current.currentTime;
 
         // Only detect peaks if we have a valid previous energy reading
         // This prevents false peaks when resuming from pause
@@ -350,7 +355,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
 
     animationFrameRef.current = requestAnimationFrame(updateAudioData);
-  }, [analyzePeakIntervals, checkForBeat]);
+  }, [analyzePeakIntervals, checkForBeat, setAudioData, setOnBeat]);
 
   // Reset beat detection function to use when playback state changes
   const resetBeatDetection = useCallback(
@@ -410,7 +415,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audioRef.current.src = currentAudioFile;
       audioRef.current.load();
     }
-  }, []);
+  }, [currentAudioFile]);
 
   // Resume AudioContext if it's suspended (needed for browsers that block autoplay)
   const resumeAudioContext = useCallback(async () => {
@@ -562,7 +567,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
           // Update our ref
           if (audioRef && typeof audioRef === "object") {
-            (audioRef as any).current = newAudio;
+            (audioRef as React.MutableRefObject<HTMLAudioElement>).current =
+              newAudio;
           }
         }
 
@@ -575,7 +581,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             try {
               // Create a completely new AudioContext
               audioContextRef.current = new (window.AudioContext ||
-                (window as any).webkitAudioContext)();
+                (
+                  window as unknown as {
+                    webkitAudioContext: typeof AudioContext;
+                  }
+                ).webkitAudioContext)();
               console.log(
                 "New AudioContext created:",
                 audioContextRef.current.state
