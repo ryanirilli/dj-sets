@@ -1,301 +1,273 @@
-import { useRef, useMemo, useEffect, useCallback } from "react";
+import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VisualizerProps } from "@/types/visualizers";
 import { useColorPalette } from "@/hooks/useColorPalette";
+import { useAudio } from "@/contexts/AudioContext";
 
-// Create a singleton gradient texture that can be reused across component instances
-let globalGradientTexture: THREE.CanvasTexture | null = null;
-let globalGeometry: THREE.CylinderGeometry | null = null;
+// Shader for gradient fade effect on the cylinders
+const cylinderVertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
 
-// Create a gradient texture that fades from white to transparent
-const createGradientTexture = () => {
-  // Return the existing texture if already created
-  if (globalGradientTexture) return globalGradientTexture;
-
-  const size = 256;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) return null;
-
-  // Create a vertical gradient from transparent at bottom to white at top
-  const gradient = ctx.createLinearGradient(0, size, 0, 0);
-  gradient.addColorStop(0, "rgba(255, 255, 255, 0.0)"); // Transparent at bottom
-  gradient.addColorStop(0.3, "rgba(255, 255, 255, 0.7)"); // Start becoming solid at 30%
-  gradient.addColorStop(1, "rgba(255, 255, 255, 1.0)"); // Solid at top
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
-
-  globalGradientTexture = new THREE.CanvasTexture(canvas);
-  globalGradientTexture.needsUpdate = true;
-  return globalGradientTexture;
-};
-
-// Create a shared cylinder geometry
-const getSharedGeometry = () => {
-  if (globalGeometry) return globalGeometry;
-
-  // Use lower segment count for better performance
-  globalGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1, 6, 1);
-  return globalGeometry;
-};
+const cylinderFragmentShader = `
+  uniform vec3 color;
+  uniform float opacity;
+  varying vec2 vUv;
+  
+  void main() {
+    // Create gradient from bottom (0) to top (1)
+    float fadeStrength = smoothstep(0.0, 0.9, vUv.y);
+    
+    // Apply gradient to opacity
+    float finalOpacity = opacity * fadeStrength;
+    
+    gl_FragColor = vec4(color, finalOpacity);
+  }
+`;
 
 const AudioBars = ({ audioData }: VisualizerProps) => {
+  const { isPlaying } = useAudio();
+  const { threeColors, getThreeColor } = useColorPalette();
   const groupRef = useRef<THREE.Group>(null);
 
-  // Further reduce the number of bars for better performance
-  const count = 36; // Reduced from 48 to 36
+  // Configuration
+  const NUM_CYLINDERS = 36; // Number of cylinders in the circle
+  const CIRCLE_RADIUS = 3; // Radius of the circle
+  const BASE_HEIGHT = 0.2; // Base height of cylinders
+  const MAX_HEIGHT = 3; // Maximum height of cylinders
+  const BASE_RADIUS = 0.15; // Radius of each cylinder
 
-  const meshRefs = useRef<THREE.Mesh[]>([]);
-  const materialRefs = useRef<THREE.ShaderMaterial[]>([]);
-  const colorArrayRef = useRef<Float32Array[]>([]);
+  // Create references for all cylinders
+  const cylinderRefs = useRef<THREE.Mesh[]>([]);
+  const shaderMaterialRefs = useRef<THREE.ShaderMaterial[]>([]);
 
-  // Flag to track whether bars have been initialized
-  const initializedRef = useRef(false);
+  // Create all cylinders
+  const cylinders = useMemo(() => {
+    const temp = [];
 
-  // Get color palette
-  const { threeColors } = useColorPalette();
-
-  // Get gradient texture - now using the singleton
-  const gradientTexture = useMemo(() => {
-    // Only create texture in browser environment
-    if (typeof window === "undefined") return null;
-    return createGradientTexture();
-  }, []);
-
-  // Create a bell curve distribution for the frequencies
-  const bellCurveDistribution = useMemo(() => {
-    return new Array(count).fill(0).map((_, i) => {
-      // Create a bell curve factor (0-1) with peak in the middle
-      const x = (i - count / 2) / (count / 4); // Normalize to [-2, 2]
-      const bellFactor = Math.exp(-0.5 * x * x); // Gaussian distribution
-      return bellFactor;
-    });
-  }, [count]);
-
-  // Create a frequency mapping for symmetrical arrangement - only compute once
-  const frequencyMapping = useMemo(() => {
-    // Create a mapping that places similar frequencies on opposite sides
-    const mapping = new Array(count);
-
-    // For each position in the circle
-    for (let i = 0; i < count; i++) {
-      // Map to a frequency index that creates symmetry
-      if (i < count / 2) {
-        // First half of the circle gets frequencies from low to mid
-        mapping[i] = Math.floor(i * 2);
-      } else {
-        // Second half of the circle gets frequencies from low to mid in reverse
-        mapping[i] = Math.floor((count - 1 - i) * 2);
-      }
-    }
-
-    return mapping;
-  }, [count]);
-
-  // Pre-compute color arrays for each position in the gradient
-  const positionColorArrays = useMemo(() => {
-    // Create 36 pre-computed color arrays (one for each bar)
-    return Array(count)
-      .fill(0)
-      .map((_, i) => {
-        const gradientPosition = i / (count - 1);
-
-        // Get the segment in the color palette
-        const segmentCount = threeColors.length - 1;
-        const segmentPosition = gradientPosition * segmentCount;
-        const segmentIndex = Math.min(
-          Math.floor(segmentPosition),
-          segmentCount - 1
-        );
-        const segmentT = segmentPosition - segmentIndex;
-
-        // Get the two colors to interpolate between
-        const colorA = threeColors[segmentIndex];
-        const colorB = threeColors[segmentIndex + 1];
-
-        // Pre-compute the interpolated color
-        const r = colorA.r + (colorB.r - colorA.r) * segmentT;
-        const g = colorA.g + (colorB.g - colorA.g) * segmentT;
-        const b = colorA.b + (colorB.b - colorA.b) * segmentT;
-
-        // Store as a Float32Array for direct use in shader
-        return new Float32Array([r, g, b]);
-      });
-  }, [count, threeColors]);
-
-  // Create shader material with gradient effect and transparency
-  const createGradientMaterial = useCallback(
-    (index: number) => {
-      // Get pre-computed color array for this position
-      const colorArray = new Float32Array(positionColorArrays[index]);
-
-      const material = new THREE.ShaderMaterial({
+    // Create shader materials with colors from the palette
+    const materials = threeColors.map((color) => {
+      const shaderMaterial = new THREE.ShaderMaterial({
+        vertexShader: cylinderVertexShader,
+        fragmentShader: cylinderFragmentShader,
         uniforms: {
-          color: { value: colorArray },
-          gradientMap: { value: gradientTexture },
-          intensity: { value: 0.0 }, // Add an intensity uniform to avoid recreating color array
+          color: { value: new THREE.Color(color) },
+          opacity: { value: 0.8 },
         },
-        vertexShader: `
-        varying vec3 vPosition;
-        varying vec2 vUv;
-        
-        void main() {
-          vPosition = position;
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-        fragmentShader: `
-        uniform vec3 color;
-        uniform float intensity;
-        uniform sampler2D gradientMap;
-        varying vec3 vPosition;
-        varying vec2 vUv;
-        
-        void main() {
-          // Sample the gradient map for alpha
-          vec4 gradientColor = texture2D(gradientMap, vec2(0.5, vUv.y));
-          
-          // Create gradient effect based on y position
-          float normalizedY = (vPosition.y + 0.5) / 1.0;
-          float gradientFactor = smoothstep(0.0, 1.0, normalizedY);
-          
-          // Apply gradient to color with intensity boost
-          vec3 finalColor = color * (0.5 + gradientFactor * 0.5) * (1.0 + intensity * 0.5);
-          
-          // Use the gradient map's alpha for transparency
-          gl_FragColor = vec4(finalColor, gradientColor.a);
-        }
-      `,
         transparent: true,
         side: THREE.DoubleSide,
       });
 
-      return { material, colorArray };
-    },
-    [gradientTexture, positionColorArrays]
-  );
+      return shaderMaterial;
+    });
 
-  // Initialize all bars once
-  useEffect(() => {
-    if (!groupRef.current || !gradientTexture || initializedRef.current) return;
+    for (let i = 0; i < NUM_CYLINDERS; i++) {
+      // Position each cylinder in a circle
+      const angle = (i / NUM_CYLINDERS) * Math.PI * 2;
+      const x = Math.cos(angle) * CIRCLE_RADIUS;
+      const z = Math.sin(angle) * CIRCLE_RADIUS;
 
-    const geometry = getSharedGeometry();
+      // Choose material based on position in circle (creates color sections)
+      const materialIndex = Math.floor((i / NUM_CYLINDERS) * materials.length);
+      const material = materials[materialIndex].clone();
 
-    // Create new meshes for each bar only if not already initialized
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const radius = 3;
+      // Keep reference to the shader material
+      shaderMaterialRefs.current[i] = material;
 
-      // Create gradient material with color from palette
-      const { material, colorArray } = createGradientMaterial(i);
+      // Create cylinder mesh - positioned at the bottom (y=0) and pointing up
+      const cylinder = (
+        <mesh
+          key={i}
+          position={[x, 0, z]}
+          scale={[1, BASE_HEIGHT, 1]} // Y scale will be animated
+          ref={(el) => {
+            if (el) cylinderRefs.current[i] = el;
+          }}
+        >
+          <cylinderGeometry
+            args={[BASE_RADIUS, BASE_RADIUS, 1, 16, 1, false]}
+          />
+          <primitive object={material} attach="material" />
+        </mesh>
+      );
 
-      // Create mesh using shared geometry
-      const mesh = new THREE.Mesh(geometry, material);
-
-      // Position the bar in a circle
-      mesh.position.x = Math.cos(angle) * radius;
-      mesh.position.z = Math.sin(angle) * radius;
-      mesh.position.y = 0.5; // Default height
-
-      // All bars are created with a minimal scale rather than being hidden
-      // This avoids the expensive show/hide operations
-      mesh.scale.y = 0.01;
-
-      // Add to group
-      groupRef.current.add(mesh);
-
-      // Store references
-      meshRefs.current.push(mesh);
-      materialRefs.current.push(material);
-      colorArrayRef.current.push(colorArray);
+      temp.push(cylinder);
     }
 
-    initializedRef.current = true;
+    return temp;
+  }, [threeColors, NUM_CYLINDERS, CIRCLE_RADIUS, BASE_RADIUS]);
 
-    // No cleanup - we keep the objects around for reuse
-  }, [count, createGradientMaterial, gradientTexture]);
+  // Helper function to create a bell curve distribution
+  const bellCurveDistribute = (value: number, index: number, total: number) => {
+    // Calculate position in the distribution (0 to 1)
+    const position = index / total;
 
-  // Store previous values for smooth transitions
-  const prevValuesRef = useRef<number[]>(Array(count).fill(0));
+    // Create a bell curve effect (highest in the middle, tapering at edges)
+    // Using a simplified Gaussian function
+    const bellFactor = Math.exp(-Math.pow((position - 0.5) * 3.5, 2));
 
-  // Smoothly interpolate between values to prevent flickering
-  const smoothInterpolate = (
-    current: number,
-    target: number,
-    factor: number = 0.3
-  ): number => {
-    return current + (target - current) * factor;
+    // Mix the original value with the bell curve
+    return value * (0.4 + bellFactor * 0.6);
   };
 
-  // Update bars based on audio data
-  // Use a consistent frame rate for animation
-  const lastTimeRef = useRef(0);
-  const animationSpeedRef = useRef(1 / 30); // Target 30fps for animations
+  // Map frequency data to cylinder positions for symmetric visualization
+  const mapFrequencyToCylinders = (audioData: Uint8Array) => {
+    // The number of frequency bands to use
+    const numBands = Math.min(128, audioData.length);
 
-  useFrame(({ clock }) => {
-    const currentTime = clock.getElapsedTime();
-    if (currentTime - lastTimeRef.current < animationSpeedRef.current) return;
-    lastTimeRef.current = currentTime;
+    // Create array to hold processed frequency data
+    const processedData = new Array(NUM_CYLINDERS).fill(0);
 
-    if (
-      !groupRef.current ||
-      !audioData ||
-      meshRefs.current.length === 0 ||
-      !audioData.length ||
-      !initializedRef.current
-    )
-      return;
+    // Calculate bass, mid, and treble average levels
+    const bassEnd = Math.floor(numBands * 0.1);
+    const midEnd = Math.floor(numBands * 0.5);
 
-    for (let i = 0; i < count; i++) {
-      if (i >= meshRefs.current.length) continue;
+    let bassSum = 0;
+    let midSum = 0;
+    let trebleSum = 0;
 
-      const mesh = meshRefs.current[i];
-      const material = materialRefs.current[i];
+    // Accumulate energy in each range
+    for (let i = 0; i < numBands; i++) {
+      const value = audioData[i] / 255; // Normalize to 0-1
 
-      // Get the corresponding frequency data using our symmetrical mapping
-      const mappedIndex = frequencyMapping[i];
-      const centerIndex = Math.floor(
-        mappedIndex * (audioData.length / (count * 2))
-      );
-      const value = audioData[centerIndex] || 0;
-
-      // Apply bell curve distribution
-      const bellIndex = i < count / 2 ? i : count - 1 - i;
-      const normalizedValue = (value / 255) * bellCurveDistribution[bellIndex];
-
-      // Smooth the transition between values - use a smaller factor for smoother transitions
-      const smoothedValue = smoothInterpolate(
-        prevValuesRef.current[i],
-        normalizedValue,
-        0.1 // Reduced from 0.15 for smoother transitions
-      );
-      prevValuesRef.current[i] = smoothedValue;
-
-      // Never hide bars - just make them very small when below threshold
-      const minScale = 0.01; // Minimum scale instead of hiding
-      const maxScale = 5; // Maximum scale factor
-
-      // Scale the bar based on audio intensity
-      mesh.scale.y = Math.max(minScale, smoothedValue * maxScale + 0.2);
-
-      // Update position to keep the bottom of the cylinder at ground level
-      mesh.position.y = mesh.scale.y / 2;
-
-      // Update intensity uniform instead of recreating color arrays
-      if (material.uniforms.intensity) {
-        material.uniforms.intensity.value = smoothedValue;
+      if (i < bassEnd) {
+        bassSum += value;
+      } else if (i < midEnd) {
+        midSum += value;
+      } else {
+        trebleSum += value;
       }
+    }
+
+    // Normalize the sums
+    const bassAvg = bassSum / bassEnd;
+    const midAvg = midSum / (midEnd - bassEnd);
+    const trebleAvg = trebleSum / (numBands - midEnd);
+
+    // Create a mirrored frequency pattern for symmetry
+    for (let i = 0; i < NUM_CYLINDERS; i++) {
+      // Convert cylinder index to angle around the circle (0 to 2π)
+      const normalizedPos = i / NUM_CYLINDERS;
+
+      // Create mirror effect by transforming 0-1 range into 0-1-0 pattern
+      const mirrorPos =
+        normalizedPos < 0.5 ? normalizedPos * 2 : (1 - normalizedPos) * 2;
+
+      // Mix frequencies based on position
+      // Bass is strongest at 0° and 180° (front and back)
+      // Treble is strongest at 90° and 270° (sides)
+      // Mid covers the transitions
+
+      let energy;
+
+      if (mirrorPos < 0.33) {
+        // Transition from bass to mid
+        const t = mirrorPos / 0.33;
+        energy = bassAvg * (1 - t) + midAvg * t;
+      } else if (mirrorPos < 0.66) {
+        // Transition from mid to treble
+        const t = (mirrorPos - 0.33) / 0.33;
+        energy = midAvg * (1 - t) + trebleAvg * t;
+      } else {
+        // Transition from treble back to mid
+        const t = (mirrorPos - 0.66) / 0.34;
+        energy = trebleAvg * (1 - t) + midAvg * t;
+      }
+
+      // Apply a bell curve to make the pattern more elegant
+      processedData[i] = bellCurveDistribute(energy, i, NUM_CYLINDERS);
+    }
+
+    return processedData;
+  };
+
+  // Animation effect
+  useFrame(() => {
+    if (!cylinderRefs.current.length) return;
+
+    // If audio data is available and playing, animate cylinders based on audio
+    if (isPlaying && audioData && audioData.length > 0) {
+      // Get symmetrically mapped audio data
+      const mappedAudio = mapFrequencyToCylinders(audioData);
+
+      // Apply the mapped audio data to the cylinders
+      cylinderRefs.current.forEach((cylinder, i) => {
+        if (cylinder && shaderMaterialRefs.current[i]) {
+          // Get the energy for this cylinder
+          const energy = mappedAudio[i];
+
+          // Scale height by energy level with a minimum height
+          const targetHeight = BASE_HEIGHT + energy * MAX_HEIGHT;
+
+          // Smooth transition to target height (Y axis)
+          const currentHeight = cylinder.scale.y;
+          cylinder.scale.y = THREE.MathUtils.lerp(
+            currentHeight,
+            targetHeight,
+            0.3
+          );
+
+          // Adjust position to keep bottom of cylinder at y=0
+          cylinder.position.y = cylinder.scale.y / 2;
+
+          // Get shader material for this cylinder
+          const material = shaderMaterialRefs.current[i];
+
+          // Change color based on height
+          const colorIndex = Math.floor(
+            (i / NUM_CYLINDERS) * threeColors.length
+          );
+          const nextColorIndex = (colorIndex + 1) % threeColors.length;
+
+          // Apply color based on energy level
+          const color = new THREE.Color(getThreeColor(colorIndex));
+          const nextColor = new THREE.Color(getThreeColor(nextColorIndex));
+
+          // Blend between colors based on energy
+          color.lerp(nextColor, energy * 0.7);
+
+          // Update the shader material color uniform
+          material.uniforms.color.value = color;
+        }
+      });
+    }
+    // If audio is not playing, reset cylinders to base state
+    else if (!isPlaying) {
+      // Reset all cylinders to base height
+      cylinderRefs.current.forEach((cylinder, i) => {
+        if (cylinder && shaderMaterialRefs.current[i]) {
+          // Smooth transition back to base height
+          const currentHeight = cylinder.scale.y;
+          if (currentHeight > BASE_HEIGHT) {
+            cylinder.scale.y = THREE.MathUtils.lerp(
+              currentHeight,
+              BASE_HEIGHT,
+              0.1
+            );
+            cylinder.position.y = cylinder.scale.y / 2;
+          } else {
+            cylinder.scale.y = BASE_HEIGHT;
+            cylinder.position.y = BASE_HEIGHT / 2;
+          }
+
+          // Reset color to original palette color
+          const colorIndex = Math.floor(
+            (i / NUM_CYLINDERS) * threeColors.length
+          );
+          shaderMaterialRefs.current[i].uniforms.color.value = new THREE.Color(
+            threeColors[colorIndex]
+          );
+        }
+      });
     }
   });
 
-  // Return the group without any rotation or positioning
-  return <group ref={groupRef} />;
+  return <group ref={groupRef}>{cylinders}</group>;
 };
 
 export default AudioBars;
