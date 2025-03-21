@@ -7,16 +7,16 @@ import EnvironmentSelector from "./EnvironmentSelector";
 import { VisualizerType } from "@/types/visualizers";
 import { getVisualizers } from "@/lib/visualizer-registry";
 import { Progress } from "@/components/ui/progress";
-import { FaPlay, FaPause, FaBars, FaTimes } from "react-icons/fa";
+import {
+  FaPlay,
+  FaPause,
+  FaBars,
+  FaTimes,
+  FaChevronDown,
+} from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetClose,
-} from "@/components/ui/custom-sheet";
+import { Sheet, SheetContent, SheetClose } from "@/components/ui/custom-sheet";
 
 interface ToolbarProps {
   selectedVisualizer: VisualizerType;
@@ -97,26 +97,26 @@ export const Toolbar = ({
     <div className="fixed bottom-0 left-0 right-0 z-50">
       {/* Main Container */}
       <div className="relative">
-        {/* Time and Duration Display - Now above the progress bar */}
-        <div className="flex justify-between px-4 py-1 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
+        {/* Bottom Menu Bar with Progress overlay */}
+        <div className="relative flex items-center justify-between p-3 bg-background/80 backdrop-blur-md border-t border-border pt-5">
+          {/* Progress Bar - Now on top of the bottom bar */}
+          <div
+            className="absolute top-0 left-0 right-0 cursor-pointer"
+            onClick={handleProgressClick}
+            ref={progressRef}
+          >
+            <Progress
+              value={progressPercentage}
+              className="h-1 rounded-none bg-muted"
+            />
+          </div>
 
-        {/* Progress Bar - Now flush with the bottom toolbar */}
-        <div
-          className="w-full cursor-pointer"
-          onClick={handleProgressClick}
-          ref={progressRef}
-        >
-          <Progress
-            value={progressPercentage}
-            className="h-1 rounded-none bg-muted"
-          />
-        </div>
+          {/* Time and Duration Display - Floating on top of the toolbar */}
+          <div className="absolute -top-8 left-0 right-0 flex justify-between text-xs text-white font-medium py-1 rounded-t-md mx-4 backdrop-blur-sm">
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
 
-        {/* Bottom Menu Bar - Horizontally aligned with play controls and menu toggle */}
-        <div className="flex items-center justify-between p-3 bg-background/80 backdrop-blur-md border-t border-border">
           {/* Empty space on the left for balance */}
           <div className="flex-1"></div>
 
@@ -143,8 +143,9 @@ export const Toolbar = ({
           <div className="flex-1 flex justify-end">
             <Button
               onClick={() => setIsOpen(true)}
-              variant="secondary"
+              variant="ghost"
               size="icon"
+              className="h-9 w-9"
             >
               <FaBars size={16} />
             </Button>
@@ -153,9 +154,16 @@ export const Toolbar = ({
                 side="right"
                 className="w-full max-w-md p-0 flex flex-col h-full bg-sidebar/80 backdrop-blur-md border-l border-border"
               >
-                <SheetHeader className="sr-only">
-                  <SheetTitle>Settings</SheetTitle>
-                </SheetHeader>
+                <div className="p-4 flex justify-between items-center border-b border-border">
+                  <h2 className="text-sidebar-foreground font-medium">
+                    Settings
+                  </h2>
+                  <SheetClose asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <FaTimes size={16} />
+                    </Button>
+                  </SheetClose>
+                </div>
 
                 {/* Main content area with scrolling */}
                 <div className="flex-1 overflow-y-auto pb-16 custom-scrollbar">
@@ -168,22 +176,11 @@ export const Toolbar = ({
                         className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Visualizers
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
+                        <FaChevronDown
                           className={`h-4 w-4 transition-transform duration-200 ${
                             openSections.visualizers ? "rotate-180" : ""
                           }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
+                        />
                       </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
@@ -222,22 +219,11 @@ export const Toolbar = ({
                         className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Environment
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
+                        <FaChevronDown
                           className={`h-4 w-4 transition-transform duration-200 ${
                             openSections.environment ? "rotate-180" : ""
                           }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
+                        />
                       </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
@@ -260,22 +246,11 @@ export const Toolbar = ({
                         className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Color Palette
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
+                        <FaChevronDown
                           className={`h-4 w-4 transition-transform duration-200 ${
                             openSections.colors ? "rotate-180" : ""
                           }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
+                        />
                       </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
@@ -309,22 +284,11 @@ export const Toolbar = ({
                         className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Camera Settings
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
+                        <FaChevronDown
                           className={`h-4 w-4 transition-transform duration-200 ${
                             openSections.camera ? "rotate-180" : ""
                           }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
+                        />
                       </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
@@ -375,22 +339,11 @@ export const Toolbar = ({
                         className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
                       >
                         Audio
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
+                        <FaChevronDown
                           className={`h-4 w-4 transition-transform duration-200 ${
                             openSections.audio ? "rotate-180" : ""
                           }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
+                        />
                       </Button>
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
@@ -408,15 +361,6 @@ export const Toolbar = ({
                       </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Fixed footer with close button */}
-                <div className="sticky bottom-0 left-0 right-0 p-3 backdrop-blur-md bg-sidebar/80 border-t border-border flex items-center justify-end">
-                  <SheetClose asChild>
-                    <Button variant="secondary" size="icon">
-                      <FaTimes size={16} />
-                    </Button>
-                  </SheetClose>
                 </div>
               </SheetContent>
             </Sheet>

@@ -196,20 +196,6 @@ const EnvironmentSelector = () => {
           </div>
         )}
       </div>
-
-      <div className="mt-2 p-2 bg-muted rounded-md">
-        <p className="text-xs text-muted-foreground mb-1">
-          Current:{" "}
-          <span className="text-foreground font-medium">
-            {environments.find((env) => env.id === selectedEnvironment)?.name ||
-              "None"}
-          </span>
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          HDR environments provide realistic lighting and reflections for your
-          3D scene.
-        </p>
-      </div>
     </div>
   );
 };
