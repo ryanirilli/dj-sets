@@ -35,74 +35,6 @@ const AutoRotateManager = ({ autoRotate }: { autoRotate: boolean }) => {
   return null;
 };
 
-// Resource cleanup component to help with memory management
-const ResourceCleaner = () => {
-  const { gl, scene } = useThree();
-
-  // Cleanup function to dispose THREE.js objects to prevent memory leaks
-  const disposeObject = (obj: THREE.Object3D) => {
-    // Cast to Object3D with additional properties
-    const object = obj as unknown as {
-      geometry?: { dispose: () => void };
-      material?: { dispose: () => void } | Array<{ dispose: () => void }>;
-      children: THREE.Object3D[];
-    };
-
-    // Dispose geometry if exists
-    if (object.geometry) {
-      object.geometry.dispose();
-    }
-
-    // Dispose materials if exists
-    if (object.material) {
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
-
-      materials.forEach((material) => {
-        // Dispose the material
-        material.dispose();
-      });
-    }
-
-    // Recursive cleanup for children
-    while (obj.children.length > 0) {
-      disposeObject(obj.children[0]);
-      obj.remove(obj.children[0]);
-    }
-  };
-
-  // Clean up unused resources periodically
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      // Force garbage collection of unused resources
-      THREE.Cache.clear();
-
-      // Log memory usage
-      if (process.env.NODE_ENV === "development") {
-        console.log("Memory usage:", {
-          geometries: gl.info?.memory?.geometries || 0,
-          textures: gl.info?.memory?.textures || 0,
-        });
-      }
-    }, 10000); // Run every 10 seconds
-
-    return () => {
-      clearInterval(cleanupInterval);
-
-      // Dispose scene objects when component unmounts
-      scene.traverse((object: THREE.Object3D) => {
-        disposeObject(object);
-      });
-
-      // Clear caches
-      THREE.Cache.clear();
-    };
-  }, [gl, scene]);
-
-  return null;
-};
-
 interface SceneProviderProps {
   children: ReactNode;
   sceneContent?: ReactNode;
@@ -616,45 +548,6 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     setShowPerformanceStats((prev) => !prev);
   }, []);
 
-  // Automatically adjust environment settings based on color palette
-  useEffect(() => {
-    // COMPLETELY DISABLED - Do not auto-adjust environment settings anymore
-    // Settings are now fully controlled by the user in EnvironmentSelector
-
-    // Log that an adjustment was attempted but skipped
-    console.log(
-      "Auto-adjustment of environment settings attempted but disabled"
-    );
-
-    // Original code is preserved in comments for reference
-    /*
-    // Only adjust automatically when first loading or changing palettes,
-    // not when the user manually changes the value via the slider
-    const userIsAdjustingManually = false; // Now controlled entirely by the slider
-
-    if (userIsAdjustingManually) {
-      return; // Skip automatic adjustments when user is controlling manually
-    }
-
-    // For bright color palettes, reduce background intensity
-    const isBrightPalette = colorPalette.colors.some((color) => {
-      const c = new THREE.Color(color);
-      // Calculate perceived brightness (weighted RGB)
-      return c.r * 0.299 + c.g * 0.587 + c.b * 0.114 > 0.7;
-    });
-
-    // Only apply automatic adjustment when initializing or changing palettes
-    // This now only happens when the color palette changes, not when background intensity changes
-    if (isBrightPalette && backgroundIntensity > 0.7) {
-      // Reduce intensity for extremely bright palettes only if it's set too high
-      setBackgroundIntensity((prevIntensity) => Math.min(prevIntensity, 0.6));
-    } else if (!isBrightPalette && backgroundIntensity < 0.3) {
-      // Increase intensity for dark palettes only if it's set too low
-      setBackgroundIntensity((prevIntensity) => Math.max(prevIntensity, 0.4));
-    }
-    */
-  }, [colorPalette]); // Keep dependency array as is
-
   // Add performance stats to context
   const contextValue: SceneContextType = {
     autoRotate,
@@ -767,9 +660,6 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
                 position={[0, -5, 0]}
               />
             )}
-
-            {/* Resource cleanup helper */}
-            <ResourceCleaner />
 
             {/* Performance monitoring components - only use RendererStats to collect data */}
             {showPerformanceStats && <RendererStats />}
