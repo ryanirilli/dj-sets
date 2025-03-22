@@ -1,8 +1,7 @@
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VisualizerProps } from "@/types/visualizers";
-import { useColorPalette } from "@/hooks/useColorPalette";
 import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
 
@@ -40,7 +39,7 @@ const cylinderFragmentShader = `
 
 const AudioBars = ({ audioData }: VisualizerProps) => {
   const { isPlaying } = useAudio();
-  const { colorPalette, transitionProgress } = useSceneContext();
+  const { colorPalette } = useSceneContext();
   const groupRef = useRef<THREE.Group>(null);
   const timeRef = useRef(0);
 
@@ -117,7 +116,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
     }
 
     return temp;
-  }, [NUM_CYLINDERS, CIRCLE_RADIUS, BASE_RADIUS]);
+  }, [NUM_CYLINDERS, CIRCLE_RADIUS, BASE_RADIUS, colorPalette.colors]);
 
   // Helper function to create a bell curve distribution
   const bellCurveDistribute = (value: number, index: number, total: number) => {
