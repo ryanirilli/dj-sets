@@ -1,75 +1,68 @@
 import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { VisualizerProps } from "@/types/visualizers";
 import { useColorPalette } from "@/hooks/useColorPalette";
 import { useAudio } from "@/contexts/AudioContext";
 
-const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
-  const { isPlaying, onBeat, bpm, beatTime, currentAudioFile } = useAudio();
+const BASE_GEOMETRY_SIZE = 2.0;
+const MIN_FACES = 3;
+const MAX_FACES = 15;
+const DEFAULT_FACES = 7;
+const AVG_AUDIO_DATA_THRESHOLD = 25;
+
+function createPolyhedronWithFaces(
+  targetFaces: number,
+  radius: number
+): THREE.BufferGeometry {
+  let geometry;
+
+  if (targetFaces <= 6) {
+    // Use cube (6 faces)
+    geometry = new THREE.BoxGeometry(radius, radius, radius);
+  } else if (targetFaces <= 8) {
+    // Use octahedron (8 faces)
+    geometry = new THREE.OctahedronGeometry(radius);
+  } else if (targetFaces <= 12) {
+    // Use icosahedron (20 faces)
+    geometry = new THREE.IcosahedronGeometry(radius);
+  } else if (targetFaces <= 20) {
+    // Use dodecahedron (12 faces)
+    geometry = new THREE.DodecahedronGeometry(radius);
+  } else {
+    // Use sphere with more detail for higher face counts
+    const detail = Math.floor((targetFaces - 20) / 10) + 1;
+    geometry = new THREE.SphereGeometry(radius, 8 + detail * 2, 6 + detail * 2);
+  }
+
+  return geometry;
+}
+
+const IcosahedronVisualizer = () => {
+  const {
+    isPlaying,
+    onBeat,
+    bpm,
+    beatTime,
+    currentAudioFile,
+    audioData,
+    avgAudioLevel,
+  } = useAudio();
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
   const { threeColors } = useColorPalette();
 
-  // Animation state
-  const [faceCount, setFaceCount] = useState(7); // Default to 7 faces
+  const [faceCount, setFaceCount] = useState(DEFAULT_FACES);
   const nextDetailChangeRef = useRef(0);
   const timeRef = useRef(0);
-  const lastFaceCountRef = useRef(7); // Track the last face count to ensure variation
-  const lastBeatTimeRef = useRef(0); // Track the last beat time to avoid duplicate responses
-  const currentAudioFileRef = useRef<string | null>(currentAudioFile);
-  const onBeatRef = useRef(false); // Track onBeat state to detect changes
-  const beatDetectedRef = useRef(false); // Track if we've detected a beat since track change
 
-  // Base size - increased for better visibility
-  const BASE_SIZE = 2.0; // Increased from default 1.0
+  const lastBeatTimeRef = useRef(0);
+  const beatDetectedRef = useRef(false);
 
-  // Min and max face counts
-  const MIN_FACES = 3;
-  const MAX_FACES = 15;
-
-  // Function to create a polyhedron with approximately the specified number of faces
-  function createPolyhedronWithFaces(
-    targetFaces: number,
-    radius: number
-  ): THREE.BufferGeometry {
-    let geometry;
-
-    // Choose appropriate geometry based on target face count
-    if (targetFaces <= 6) {
-      // Use cube (6 faces)
-      geometry = new THREE.BoxGeometry(radius, radius, radius);
-    } else if (targetFaces <= 8) {
-      // Use octahedron (8 faces)
-      geometry = new THREE.OctahedronGeometry(radius);
-    } else if (targetFaces <= 12) {
-      // Use icosahedron (20 faces)
-      geometry = new THREE.IcosahedronGeometry(radius);
-    } else if (targetFaces <= 20) {
-      // Use dodecahedron (12 faces)
-      geometry = new THREE.DodecahedronGeometry(radius);
-    } else {
-      // Use sphere with more detail for higher face counts
-      const detail = Math.floor((targetFaces - 20) / 10) + 1;
-      geometry = new THREE.SphereGeometry(
-        radius,
-        8 + detail * 2,
-        6 + detail * 2
-      );
-    }
-
-    // All geometries in Three.js are already BufferGeometry in newer versions
-    return geometry;
-  }
-
-  // Create geometries with different face counts
   const geometries = useMemo(() => {
     const geos = [];
 
-    // Create geometries with different face counts from MIN_FACES to MAX_FACES
     for (let faceCount = MIN_FACES; faceCount <= MAX_FACES; faceCount++) {
-      // Create a polyhedron with the specified number of faces
-      const geometry = createPolyhedronWithFaces(faceCount, BASE_SIZE);
+      const geometry = createPolyhedronWithFaces(faceCount, BASE_GEOMETRY_SIZE);
       geos.push(geometry);
     }
 
@@ -78,70 +71,19 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
 
   // Reset state when audio track changes
   useEffect(() => {
-    if (currentAudioFile !== currentAudioFileRef.current) {
-      console.log(
-        "IcosahedronVisualizer: Audio track changed from",
-        currentAudioFileRef.current,
-        "to",
-        currentAudioFile
-      );
+    lastBeatTimeRef.current = 0;
+    beatDetectedRef.current = false;
 
-      // Update the reference to the current audio file
-      currentAudioFileRef.current = currentAudioFile;
-
-      // Reset beat tracking
-      lastBeatTimeRef.current = 0;
-      onBeatRef.current = false;
-      beatDetectedRef.current = false;
-
-      // Reset to default face count
-      const defaultFaceCount = 7;
-      setFaceCount(defaultFaceCount);
-      lastFaceCountRef.current = defaultFaceCount;
-
-      // Force update the mesh geometry if it exists
-      if (meshRef.current && geometries[defaultFaceCount - MIN_FACES]) {
-        meshRef.current.geometry = geometries[defaultFaceCount - MIN_FACES];
-        console.log("IcosahedronVisualizer: Mesh geometry reset to default");
-      }
-
-      // Reset next detail change time
-      nextDetailChangeRef.current = 0;
-
-      console.log("IcosahedronVisualizer: State fully reset for new track");
+    if (meshRef.current && geometries[DEFAULT_FACES - MIN_FACES]) {
+      meshRef.current.geometry = geometries[DEFAULT_FACES - MIN_FACES];
     }
+
+    nextDetailChangeRef.current = 0;
   }, [currentAudioFile, geometries]);
 
-  // Track onBeat changes
-  useEffect(() => {
-    // Only update if there's a change to avoid unnecessary processing
-    if (onBeatRef.current !== onBeat) {
-      onBeatRef.current = onBeat;
-
-      // If we detect a beat, log it for debugging
-      if (onBeat) {
-        console.log("IcosahedronVisualizer: Beat detected at time:", beatTime);
-        beatDetectedRef.current = true;
-      }
-    }
-  }, [onBeat, beatTime]);
-
-  // Monitor isPlaying changes
-  useEffect(() => {
-    if (isPlaying) {
-      console.log("IcosahedronVisualizer: Audio playback started/resumed");
-    } else {
-      console.log("IcosahedronVisualizer: Audio playback stopped/paused");
-      // Reset beat tracking when playback stops
-      lastBeatTimeRef.current = 0;
-      beatDetectedRef.current = false;
-    }
-  }, [isPlaying]);
-
-  // Get a random face count within our defined range
   const getRandomFaceCount = () => {
     // Get current face count
-    const currentFaceCount = lastFaceCountRef.current;
+    const currentFaceCount = faceCount;
 
     // Calculate how many options we have
     const range = MAX_FACES - MIN_FACES + 1;
@@ -154,9 +96,6 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
       Math.abs(newFaceCount - currentFaceCount) < range * 0.25 ||
       newFaceCount === currentFaceCount
     );
-
-    // Update the last face count reference
-    lastFaceCountRef.current = newFaceCount;
 
     return newFaceCount;
   };
@@ -180,31 +119,25 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
         // Update last beat time to avoid duplicate responses
         lastBeatTimeRef.current = beatTime;
 
-        // Change face count on beat
         const newFaceCount = getRandomFaceCount();
 
         // Force update the mesh geometry directly
-        if (meshRef.current && geometries[newFaceCount - MIN_FACES]) {
+        if (
+          meshRef.current &&
+          geometries[newFaceCount - MIN_FACES] &&
+          avgAudioLevel > AVG_AUDIO_DATA_THRESHOLD
+        ) {
           meshRef.current.geometry = geometries[newFaceCount - MIN_FACES];
-
-          // Update state for React
           setFaceCount(newFaceCount);
-
-          console.log(
-            "BEAT DETECTED! New face count:",
-            newFaceCount,
-            "BPM:",
-            bpm
-          );
         }
       }
 
-      // Calculate overall energy (for rotation and shader effects)
-      const totalEnergy =
-        Array.from(audioData.slice(0, 16)).reduce((sum, val) => sum + val, 0) /
-        (16 * 255);
+      const totalEnergy = Math.pow(
+        Array.from(audioData.slice(0, 64)).reduce((sum, val) => sum + val, 0) /
+          (32 * 255),
+        0.5
+      );
 
-      // Update audio intensity uniform
       if (materialRef.current.uniforms) {
         materialRef.current.uniforms.uAudioIntensity.value = totalEnergy;
       }
@@ -224,53 +157,8 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
 
       // Reset beat tracking
       lastBeatTimeRef.current = 0;
-
-      // Occasionally change face count when not playing
-      if (currentTime > nextDetailChangeRef.current) {
-        nextDetailChangeRef.current = currentTime + 2.0;
-        const newFaceCount =
-          MIN_FACES + Math.floor(Math.random() * (MAX_FACES - MIN_FACES));
-
-        // Force update the mesh geometry directly
-        if (meshRef.current && geometries[newFaceCount - MIN_FACES]) {
-          meshRef.current.geometry = geometries[newFaceCount - MIN_FACES];
-          setFaceCount(newFaceCount);
-        }
-      }
     }
   });
-
-  // Manually trigger a face change every few seconds if no beats are detected
-  // This ensures the visualizer still changes even if beat detection fails
-  useEffect(() => {
-    if (!isPlaying) return;
-
-    let timeoutId: NodeJS.Timeout;
-
-    const checkForBeats = () => {
-      // If we haven't detected any beats in 5 seconds of playback, force a face change
-      if (isPlaying && !beatDetectedRef.current) {
-        console.log("No beats detected, forcing face change");
-        const newFaceCount = getRandomFaceCount();
-
-        if (meshRef.current && geometries[newFaceCount - MIN_FACES]) {
-          meshRef.current.geometry = geometries[newFaceCount - MIN_FACES];
-          setFaceCount(newFaceCount);
-        }
-      }
-
-      // Reset beat detection flag and check again in 5 seconds
-      beatDetectedRef.current = false;
-      timeoutId = setTimeout(checkForBeats, 5000);
-    };
-
-    // Start checking after 5 seconds
-    timeoutId = setTimeout(checkForBeats, 5000);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [isPlaying, geometries]);
 
   // Frosted glass shader with subsurface scattering and noise
   const shaderMaterial = useMemo(() => {
@@ -409,14 +297,15 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
           combinedNoise *= pulseFactor;
           
           // Base color from gradient
-          float gradientFactor = (vPosition.y + ${BASE_SIZE.toFixed(1)}) * ${(
-        1.0 /
-        (2.0 * BASE_SIZE)
-      ).toFixed(6)};
+          float gradientFactor = (vPosition.y + ${BASE_GEOMETRY_SIZE.toFixed(
+            1
+          )}) * ${(1.0 / (2.0 * BASE_GEOMETRY_SIZE)).toFixed(6)};
           vec3 baseColor = getGradientColor(gradientFactor);
           
           // Subsurface scattering effect - brighter in the center, reduced intensity
-          float sss = 1.0 - length(vPosition) / (${BASE_SIZE.toFixed(1)} * 1.5);
+          float sss = 1.0 - length(vPosition) / (${BASE_GEOMETRY_SIZE.toFixed(
+            1
+          )} * 1.5);
           sss = max(0.0, sss * 1.5) * (0.7 + uAudioIntensity * 0.5); // Reduced base intensity
           
           // Enhanced edge detection for better definition
@@ -474,12 +363,6 @@ const IcosahedronVisualizer = ({ audioData }: VisualizerProps) => {
       if (material) material.dispose();
     };
   }, [geometries]);
-
-  // Initialize
-  useEffect(() => {
-    setFaceCount(7); // Start with 7 faces
-    nextDetailChangeRef.current = 0;
-  }, []);
 
   return (
     <group>

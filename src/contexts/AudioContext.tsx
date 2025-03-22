@@ -19,6 +19,7 @@ interface AudioContextType {
   bpm: number;
   onBeat: boolean;
   beatTime: number;
+  avgAudioLevel: number;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
@@ -42,6 +43,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [bpm, setBpm] = useState<number>(120); // Default BPM
   const [onBeat, setOnBeat] = useState<boolean>(false);
   const [beatTime, setBeatTime] = useState<number>(0);
+  const [avgAudioLevel, setAvgAudioLevel] = useState<number>(0);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -302,6 +304,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
       analyserRef.current.getByteFrequencyData(dataArray);
       setAudioData(dataArray);
+
+      // Calculate and set average audio level
+      if (dataArray.length > 0) {
+        const avgLevel =
+          Array.from(dataArray).reduce((sum, val) => sum + val, 0) /
+          dataArray.length;
+        setAvgAudioLevel(avgLevel);
+      }
 
       // Beat detection based on Joe Sullivan's approach
       if (dataArray.length > 0) {
@@ -667,6 +677,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     bpm,
     onBeat,
     beatTime,
+    avgAudioLevel,
   };
 
   return (
