@@ -22,7 +22,6 @@ const ColorPaletteSelector = () => {
                     : "bg-black/30 hover:bg-white/10"
                 }
               `}
-              title={palette.description}
             >
               <div className="flex-1 text-left text-sm font-medium text-white/90 mb-2">
                 {palette.name}
@@ -36,9 +35,6 @@ const ColorPaletteSelector = () => {
                   boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
                 }}
               />
-              <div className="text-xs text-white/50 mt-2 text-left">
-                {palette.description}
-              </div>
             </button>
           ))}
         </div>
