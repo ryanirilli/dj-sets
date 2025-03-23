@@ -30,7 +30,6 @@ const VisualizerLoading = () => (
 function HomeContent() {
   const { audioData, setAudioFile, currentAudioFile } = useAudio();
   const { settings, updateSettings } = useSettings();
-  const [isChangingVisualizer, setIsChangingVisualizer] = useState(false);
   const [activeVisualizerType, setActiveVisualizerType] =
     useState<VisualizerType>(settings.visualizerType);
 
@@ -101,45 +100,22 @@ function HomeContent() {
     }
   }, [settings.visualizerType, updateSettings]);
 
-  // Handle visualizer switching with cleanup
+  // Update activeVisualizerType when settings visualizerType changes
   useEffect(() => {
     console.log(
-      "[DEBUG] Settings visualizer type changed to:",
+      "[DEBUG] Updating active visualizer type to match settings:",
       settings.visualizerType
     );
-    console.log(
-      "[DEBUG] Current active visualizer type:",
-      activeVisualizerType
-    );
-
-    if (settings.visualizerType !== activeVisualizerType) {
-      console.log(
-        "[DEBUG] Switching visualizer from",
-        activeVisualizerType,
-        "to",
-        settings.visualizerType
-      );
-      // Visualizer is changing, trigger transition
-      setIsChangingVisualizer(true);
-
-      // Force garbage collection
-      THREE.Cache.clear();
-
-      // Add a small delay to allow for proper transition
-      const timer = setTimeout(() => {
-        setActiveVisualizerType(settings.visualizerType);
-        setIsChangingVisualizer(false);
-      }, 300);
-
-      return () => clearTimeout(timer);
-    }
-  }, [settings.visualizerType, activeVisualizerType]);
+    setActiveVisualizerType(settings.visualizerType);
+  }, [settings.visualizerType]);
 
   // Function to handle visualizer changes
   const handleVisualizerChange = (type: VisualizerType) => {
     console.log("[DEBUG] handleVisualizerChange called with:", type);
-    // This will trigger the effect above
+    // Update the settings which will trigger the effect to update activeVisualizerType
     updateSettings("visualizerType", type);
+    // Force garbage collection
+    THREE.Cache.clear();
   };
 
   // Render the selected visualizer component
@@ -148,11 +124,16 @@ function HomeContent() {
 
     switch (activeVisualizerType) {
       case "circular":
-        return <AudioBars audioData={audioData} />;
+        return <AudioBars audioData={audioData} key="circular-visualizer" />;
       case "smoke":
-        return <SmokeVisualizer audioData={audioData} />;
+        return <SmokeVisualizer audioData={audioData} key="smoke-visualizer" />;
       case "icosahedron":
-        return <IcosahedronVisualizer audioData={audioData} />;
+        return (
+          <IcosahedronVisualizer
+            audioData={audioData}
+            key="icosahedron-visualizer"
+          />
+        );
       default:
         // If we get here, it means the activeVisualizerType is invalid
         console.log(
@@ -168,14 +149,23 @@ function HomeContent() {
         // Return the appropriate component based on default type
         switch (defaultType) {
           case "circular":
-            return <AudioBars audioData={audioData} />;
+            return <AudioBars audioData={audioData} key="default-circular" />;
           case "smoke":
-            return <SmokeVisualizer audioData={audioData} />;
+            return (
+              <SmokeVisualizer audioData={audioData} key="default-smoke" />
+            );
           case "icosahedron":
-            return <IcosahedronVisualizer audioData={audioData} />;
+            return (
+              <IcosahedronVisualizer
+                audioData={audioData}
+                key="default-icosahedron"
+              />
+            );
           default:
             // Fallback to Smoke as absolute default
-            return <SmokeVisualizer audioData={audioData} />;
+            return (
+              <SmokeVisualizer audioData={audioData} key="fallback-smoke" />
+            );
         }
     }
   };
@@ -183,11 +173,9 @@ function HomeContent() {
   return (
     <SceneProvider
       sceneContent={
-        isChangingVisualizer ? null : (
-          <Suspense fallback={<VisualizerLoading />}>
-            {renderVisualizer()}
-          </Suspense>
-        )
+        <Suspense fallback={<VisualizerLoading />}>
+          {renderVisualizer()}
+        </Suspense>
       }
     >
       <Toolbar
