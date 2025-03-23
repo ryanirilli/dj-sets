@@ -285,6 +285,20 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
           // Update the shader material color uniform
           if (material && material.uniforms && material.uniforms.color) {
             material.uniforms.color.value.copy(color);
+
+            // Make cylinder transparent if energy is near 0
+            if (material.uniforms.opacity) {
+              // Scale opacity based on energy level
+              const targetOpacity = energy < 0.05 ? 0 : 0.8;
+              // Smooth transition for opacity
+              const currentOpacity = material.uniforms.opacity.value;
+              material.uniforms.opacity.value = THREE.MathUtils.lerp(
+                currentOpacity,
+                targetOpacity,
+                0.2
+              );
+            }
+
             material.needsUpdate = true;
           }
         }
@@ -293,7 +307,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
     // If audio is not playing, just update heights (colors are handled above)
     else if (!isPlaying) {
       // Reset or update all cylinders
-      cylinderRefs.current.forEach((cylinder) => {
+      cylinderRefs.current.forEach((cylinder, i) => {
         if (cylinder) {
           // Smooth transition back to base height
           const currentHeight = cylinder.scale.y;
@@ -307,6 +321,18 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
           } else {
             cylinder.scale.y = BASE_HEIGHT;
             cylinder.position.y = BASE_HEIGHT / 2;
+          }
+
+          // Make cylinders transparent when audio is not playing
+          const material = materialInstances[i];
+          if (material?.uniforms?.opacity) {
+            // Smooth transition to transparent
+            const currentOpacity = material.uniforms.opacity.value;
+            material.uniforms.opacity.value = THREE.MathUtils.lerp(
+              currentOpacity,
+              0,
+              0.05
+            );
           }
         }
       });
