@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 interface StatsDisplayProps {
   fps: number;
@@ -18,104 +18,55 @@ const StatsDisplay: React.FC<StatsDisplayProps> = ({
   triangles = 0,
   calls = 0,
 }) => {
-  // Determine performance level based on FPS
-  const getFpsStatus = (fps: number): { color: string; label: string } => {
-    if (fps >= 55) return { color: "text-green-400", label: "Excellent" };
-    if (fps >= 45) return { color: "text-green-300", label: "Good" };
-    if (fps >= 30) return { color: "text-yellow-300", label: "Fair" };
-    if (fps >= 20) return { color: "text-orange-400", label: "Poor" };
-    return { color: "text-red-500", label: "Critical" };
-  };
+  // Keep a small history of FPS values to smooth out the display
+  const [smoothedFps, setSmoothedFps] = useState(fps);
 
-  const fpsStatus = getFpsStatus(fps);
+  useEffect(() => {
+    // Smooth FPS updates
+    if (fps > 0) {
+      setSmoothedFps((prev) => Math.round((prev * 2 + fps) / 3));
+    }
+  }, [fps]);
 
   // Format large numbers with commas
-  const formatNumber = (num: number): string => {
-    return num.toLocaleString();
+  const formatNumber = (num: number): string => num.toLocaleString();
+
+  // Determine color based on performance
+  const getFpsColor = (fps: number): string => {
+    if (fps >= 55) return "text-green-400";
+    if (fps >= 45) return "text-green-300";
+    if (fps >= 30) return "text-yellow-300";
+    if (fps >= 20) return "text-orange-400";
+    return "text-red-500";
   };
 
   return (
-    <div className="fixed top-4 right-4 bg-black/80 text-white p-3 text-xs font-mono z-50 rounded-md border border-gray-700 shadow-lg max-w-[200px]">
-      <div className="text-center font-semibold border-b border-gray-700 pb-1 mb-2">
-        Performance Monitor
-      </div>
-
-      <div className="flex items-center justify-between mb-1">
-        <span
-          className="text-gray-400"
-          title="Frames Per Second - Higher is better"
-        >
-          FPS:
+    <div className="fixed top-2 right-2 bg-black/80 text-white p-2 text-xs font-mono z-50 rounded-md border border-gray-700 shadow-lg">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <span className="text-gray-400">FPS:</span>
+        <span className={`${getFpsColor(smoothedFps)} text-right font-bold`}>
+          {smoothedFps}
         </span>
-        <span className={`font-bold ${fpsStatus.color}`}>
-          {fps}{" "}
-          <span className="text-[10px] opacity-80">({fpsStatus.label})</span>
-        </span>
-      </div>
 
-      <div className="flex items-center justify-between mb-1">
-        <span
-          className="text-gray-400"
-          title="Number of geometry objects in memory"
-        >
-          Geometries:
-        </span>
-        <span
-          className={geometries > 1000 ? "text-yellow-300" : "text-gray-200"}
-        >
-          {formatNumber(geometries)}
-        </span>
-      </div>
+        <span className="text-gray-400">GEO:</span>
+        <span className="text-right">{formatNumber(geometries)}</span>
 
-      <div className="flex items-center justify-between mb-1">
-        <span
-          className="text-gray-400"
-          title="Number of texture objects in memory"
-        >
-          Textures:
-        </span>
-        <span className={textures > 50 ? "text-yellow-300" : "text-gray-200"}>
-          {formatNumber(textures)}
-        </span>
-      </div>
+        <span className="text-gray-400">TEX:</span>
+        <span className="text-right">{formatNumber(textures)}</span>
 
-      {triangles > 0 && (
-        <div className="flex items-center justify-between mb-1">
-          <span
-            className="text-gray-400"
-            title="Number of triangles being rendered"
-          >
-            Triangles:
-          </span>
-          <span
-            className={
-              triangles > 1000000 ? "text-yellow-300" : "text-gray-200"
-            }
-          >
-            {formatNumber(triangles)}
-          </span>
-        </div>
-      )}
+        {triangles > 0 && (
+          <>
+            <span className="text-gray-400">TRI:</span>
+            <span className="text-right">{formatNumber(triangles)}</span>
+          </>
+        )}
 
-      {calls > 0 && (
-        <div className="flex items-center justify-between mb-1">
-          <span
-            className="text-gray-400"
-            title="Number of draw calls per frame"
-          >
-            Draw Calls:
-          </span>
-          <span className={calls > 100 ? "text-yellow-300" : "text-gray-200"}>
-            {formatNumber(calls)}
-          </span>
-        </div>
-      )}
-
-      <div className="mt-2 pt-1 border-t border-gray-700 text-[9px] text-gray-500">
-        <div className="mb-1">
-          Higher values for geometries and textures may indicate memory leaks
-        </div>
-        <div>Many draw calls can impact performance</div>
+        {calls > 0 && (
+          <>
+            <span className="text-gray-400">CALLS:</span>
+            <span className="text-right">{formatNumber(calls)}</span>
+          </>
+        )}
       </div>
     </div>
   );

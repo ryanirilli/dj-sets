@@ -11,6 +11,13 @@ import {
 } from "@/types/colorPalettes";
 import StatsDisplay from "@/components/StatsDisplay";
 
+// Add StatsData interface
+interface StatsData {
+  fps: number;
+  geometries: number;
+  textures: number;
+}
+
 // Force render component to ensure continuous animation
 const ForceRender = () => {
   const { gl, scene, camera } = useThree();
@@ -201,6 +208,8 @@ interface SceneContextType {
   setEnvironmentTintStrength: (value: number) => void;
   showPerformanceStats: boolean;
   togglePerformanceStats: () => void;
+  stats: StatsData;
+  setStats: (stats: StatsData) => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -224,6 +233,8 @@ const SceneContext = createContext<SceneContextType>({
   setEnvironmentTintStrength: () => {},
   showPerformanceStats: false,
   togglePerformanceStats: () => {},
+  stats: { fps: 0, geometries: 0, textures: 0 },
+  setStats: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -231,24 +242,38 @@ export const useSceneContext = () => useContext(SceneContext);
 // Component to collect renderer stats
 const RendererStats = () => {
   const { gl } = useThree();
-  const statsRef = useRef<{
-    fps: number;
-    memory: { geometries: number; textures: number };
-  }>({
-    fps: 0,
-    memory: { geometries: 0, textures: 0 },
-  });
+  const { setStats } = useSceneContext();
+
+  // Keep track of frames for FPS calculation
+  const frameCountRef = useRef(0);
+  const lastTimeRef = useRef(performance.now());
+  const lastFpsUpdateRef = useRef(performance.now());
+  const fpsRef = useRef(0);
 
   useFrame(() => {
-    if (gl.info) {
-      const memory = gl.info.memory;
-      statsRef.current = {
-        fps: 0, // We're not tracking FPS here
-        memory: {
-          geometries: memory?.geometries || 0,
-          textures: memory?.textures || 0,
-        },
-      };
+    // Count frames
+    frameCountRef.current++;
+    const now = performance.now();
+
+    // Calculate FPS every 500ms
+    if (now - lastFpsUpdateRef.current >= 200) {
+      const elapsed = now - lastTimeRef.current;
+      fpsRef.current = Math.round((frameCountRef.current * 1000) / elapsed);
+
+      // Get memory stats
+      const memory = gl.info?.memory || { geometries: 0, textures: 0 };
+
+      // Update stats in context
+      setStats({
+        fps: fpsRef.current,
+        geometries: memory.geometries || 0,
+        textures: memory.textures || 0,
+      });
+
+      // Reset counters for next FPS calculation
+      frameCountRef.current = 0;
+      lastTimeRef.current = now;
+      lastFpsUpdateRef.current = now;
     }
   });
 
@@ -385,14 +410,12 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const colorRotationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const transitionFrameRef = useRef<number | null>(null);
   const lastTransitionTimeRef = useRef<number>(0);
-  const rendererInfoRef = useRef<{
-    fps: number;
-    memory: { geometries: number; textures: number };
-  }>({
-    fps: 0,
-    memory: { geometries: 0, textures: 0 },
-  });
   const [environmentTintStrength, setEnvironmentTintStrength] = useState(0.5);
+  const [stats, setStats] = useState<StatsData>({
+    fps: 0,
+    geometries: 0,
+    textures: 0,
+  });
 
   // Debug auto-rotate state
   useEffect(() => {
@@ -570,6 +593,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     setEnvironmentTintStrength,
     showPerformanceStats,
     togglePerformanceStats,
+    stats,
+    setStats,
   };
 
   return (
@@ -661,20 +686,18 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               />
             )}
 
-            {/* Performance monitoring components - only use RendererStats to collect data */}
+            {/* Performance monitoring - only add the data collector */}
             {showPerformanceStats && <RendererStats />}
 
             <Preload all />
           </Canvas>
 
-          {/* Performance monitoring - render outside Canvas with improved positioning */}
+          {/* Render the StatsDisplay outside the Canvas */}
           {showPerformanceStats && (
             <StatsDisplay
-              fps={rendererInfoRef.current.fps}
-              geometries={rendererInfoRef.current.memory.geometries}
-              textures={rendererInfoRef.current.memory.textures}
-              triangles={0}
-              calls={0}
+              fps={stats.fps}
+              geometries={stats.geometries}
+              textures={stats.textures}
             />
           )}
         </div>

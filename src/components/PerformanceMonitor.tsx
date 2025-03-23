@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
-import { WebGLRenderer, WebGLInfo } from "three";
+import { WebGLRenderer } from "three";
 
 interface PerformanceStats {
   fps: number;
@@ -11,9 +10,15 @@ interface PerformanceStats {
   };
 }
 
-interface ExtendedWebGLRenderer extends WebGLRenderer {
-  info: WebGLInfo;
-}
+// Using a type assertion to avoid type incompatibility issues
+type RendererWithInfo = WebGLRenderer & {
+  info: {
+    memory: {
+      geometries: number;
+      textures: number;
+    };
+  };
+};
 
 const PerformanceMonitor = ({ visible = true }: { visible?: boolean }) => {
   const [stats, setStats] = useState<PerformanceStats>({
@@ -42,10 +47,10 @@ const PerformanceMonitor = ({ visible = true }: { visible?: boolean }) => {
         const fps = Math.round((frameCount * 1000) / elapsed);
 
         // Get memory info from renderer
+        const renderer = gl as RendererWithInfo;
         const memory = {
-          geometries:
-            (gl as ExtendedWebGLRenderer).info?.memory?.geometries || 0,
-          textures: (gl as ExtendedWebGLRenderer).info?.memory?.textures || 0,
+          geometries: renderer.info.memory.geometries || 0,
+          textures: renderer.info.memory.textures || 0,
         };
 
         setStats({ fps, memory });
@@ -67,24 +72,17 @@ const PerformanceMonitor = ({ visible = true }: { visible?: boolean }) => {
 
   if (!visible) return null;
 
-  // Use Html component from drei to render HTML content within the Three.js canvas
   return (
-    <Html
-      as="div"
+    <div
       className="fixed top-0 left-0 bg-black/70 text-white p-2 text-xs font-mono z-50 rounded-br-md"
       style={{
         pointerEvents: "none",
-        transform: "translateZ(0px)",
       }}
-      position={[-100, 100, 0]}
-      distanceFactor={10}
-      zIndexRange={[100, 0]}
-      prepend
     >
       <div>FPS: {stats.fps}</div>
-      <div>Geometries: {stats.memory.geometries}</div>
-      <div>Textures: {stats.memory.textures}</div>
-    </Html>
+      <div>GEO: {stats.memory.geometries}</div>
+      <div>TEX: {stats.memory.textures}</div>
+    </div>
   );
 };
 
