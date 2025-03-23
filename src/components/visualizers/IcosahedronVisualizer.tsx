@@ -41,7 +41,6 @@ const IcosahedronVisualizer = () => {
   const {
     isPlaying,
     onBeat,
-    bpm,
     beatTime,
     currentAudioFile,
     audioData,
