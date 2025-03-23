@@ -46,38 +46,65 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
   // Configuration
   const NUM_CYLINDERS = 36; // Number of cylinders in the circle
   const CIRCLE_RADIUS = 3; // Radius of the circle
-  const BASE_HEIGHT = 0.2; // Base height of cylinders
+  const BASE_HEIGHT = 0; // Base height of cylinders
   const MAX_HEIGHT = 3; // Maximum height of cylinders
   const BASE_RADIUS = 0.15; // Radius of each cylinder
 
   // Create references for all cylinders
   const cylinderRefs = useRef<THREE.Mesh[]>([]);
-  const shaderMaterialRefs = useRef<THREE.ShaderMaterial[]>([]);
 
-  // Initialize refs arrays
+  // Create a single shared shader material
+  const sharedMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: cylinderVertexShader,
+      fragmentShader: cylinderFragmentShader,
+      uniforms: {
+        color: { value: new THREE.Color(colorPalette.colors[0]) },
+        opacity: { value: 0.8 },
+        time: { value: 0.0 },
+      },
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+  }, [colorPalette]);
+
+  // Array to hold individual material instances (cloned from shared material)
+  const materialInstances = useMemo(() => {
+    const instances = [];
+
+    for (let i = 0; i < NUM_CYLINDERS; i++) {
+      // Clone the shared material for each cylinder
+      const materialInstance = sharedMaterial.clone();
+
+      // Set initial color based on position
+      const colorIndex = Math.floor(
+        (i / NUM_CYLINDERS) * colorPalette.colors.length
+      );
+      materialInstance.uniforms.color.value = new THREE.Color(
+        colorPalette.colors[colorIndex]
+      );
+
+      instances.push(materialInstance);
+    }
+
+    return instances;
+  }, [NUM_CYLINDERS, sharedMaterial, colorPalette]);
+
+  // Initialize refs array
   useMemo(() => {
     cylinderRefs.current = new Array(NUM_CYLINDERS);
-    shaderMaterialRefs.current = new Array(NUM_CYLINDERS);
   }, [NUM_CYLINDERS]);
 
   // Create all cylinders
   const cylinders = useMemo(() => {
     const temp = [];
-    shaderMaterialRefs.current = new Array(NUM_CYLINDERS);
 
     for (let i = 0; i < NUM_CYLINDERS; i++) {
       // Position each cylinder in a circle
       const angle = (i / NUM_CYLINDERS) * Math.PI * 2;
       const x = Math.cos(angle) * CIRCLE_RADIUS;
       const z = Math.sin(angle) * CIRCLE_RADIUS;
-
-      // Choose material based on position in circle (creates color sections)
-      const materialIndex = Math.floor(
-        (i / NUM_CYLINDERS) * colorPalette.colors.length
-      );
-
-      // Use color directly from context palette
-      const color = new THREE.Color(colorPalette.colors[materialIndex]);
 
       // Create cylinder mesh - positioned at the bottom (y=0) and pointing up
       const cylinder = (
@@ -92,23 +119,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
           <cylinderGeometry
             args={[BASE_RADIUS, BASE_RADIUS, 1, 16, 1, false]}
           />
-          <shaderMaterial
-            ref={(el) => {
-              if (el) {
-                shaderMaterialRefs.current[i] = el;
-              }
-            }}
-            vertexShader={cylinderVertexShader}
-            fragmentShader={cylinderFragmentShader}
-            uniforms={{
-              color: { value: color },
-              opacity: { value: 0.8 },
-              time: { value: 0.0 },
-            }}
-            transparent={true}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
+          <primitive object={materialInstances[i]} />
         </mesh>
       );
 
@@ -116,7 +127,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
     }
 
     return temp;
-  }, [NUM_CYLINDERS, CIRCLE_RADIUS, BASE_RADIUS, colorPalette.colors]);
+  }, [NUM_CYLINDERS, CIRCLE_RADIUS, BASE_RADIUS, materialInstances]);
 
   // Helper function to create a bell curve distribution
   const bellCurveDistribute = (value: number, index: number, total: number) => {
@@ -210,24 +221,20 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
     timeRef.current += 0.01;
 
     // Force all materials to update their colors and time
-    cylinderRefs.current.forEach((cylinder, i) => {
-      if (cylinder && shaderMaterialRefs.current[i]) {
-        const material = shaderMaterialRefs.current[i];
+    materialInstances.forEach((material, i) => {
+      if (material?.uniforms) {
+        // Always update time to force shader refresh
+        if (material.uniforms.time) {
+          material.uniforms.time.value = timeRef.current;
+        }
 
-        if (material?.uniforms) {
-          // Always update time to force shader refresh
-          if (material.uniforms.time) {
-            material.uniforms.time.value = timeRef.current;
-          }
-
-          // Always update color from the latest palette
-          if (material.uniforms.color) {
-            const colorIndex = Math.floor(
-              (i / NUM_CYLINDERS) * colorPalette.colors.length
-            );
-            const color = new THREE.Color(colorPalette.colors[colorIndex]);
-            material.uniforms.color.value.copy(color);
-          }
+        // Always update color from the latest palette
+        if (material.uniforms.color) {
+          const colorIndex = Math.floor(
+            (i / NUM_CYLINDERS) * colorPalette.colors.length
+          );
+          const color = new THREE.Color(colorPalette.colors[colorIndex]);
+          material.uniforms.color.value.copy(color);
         }
       }
     });
@@ -239,7 +246,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
 
       // Apply the mapped audio data to the cylinders
       cylinderRefs.current.forEach((cylinder, i) => {
-        if (cylinder && shaderMaterialRefs.current[i]) {
+        if (cylinder && materialInstances[i]) {
           // Get the energy for this cylinder
           const energy = mappedAudio[i];
 
@@ -258,7 +265,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
           cylinder.position.y = cylinder.scale.y / 2;
 
           // Get shader material for this cylinder
-          const material = shaderMaterialRefs.current[i];
+          const material = materialInstances[i];
 
           // Change color based on height and current palette
           const colorIndex = Math.floor(
@@ -287,7 +294,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
     else if (!isPlaying) {
       // Reset or update all cylinders
       cylinderRefs.current.forEach((cylinder, i) => {
-        if (cylinder && shaderMaterialRefs.current[i]) {
+        if (cylinder) {
           // Smooth transition back to base height
           const currentHeight = cylinder.scale.y;
           if (currentHeight > BASE_HEIGHT) {
