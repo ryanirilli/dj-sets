@@ -44,6 +44,10 @@
     --control-foreground: 0 0% 100%;
     --control-thumb: 0 0% 100%;
     --control-thumb-border: 270 60% 85%;
+
+    /* UI State Colors */
+    --ui-active-bg: hsl(var(--control-track));
+    --ui-hover-bg: hsl(var(--control-track) / 0.5);
   }
 
   html,
@@ -92,6 +96,10 @@
     --control-foreground: 0 0% 100%;
     --control-thumb: 0 0% 100%;
     --control-thumb-border: 270 70% 45%;
+
+    /* UI State Colors - Dark mode */
+    --ui-active-bg: hsl(var(--control-track));
+    --ui-hover-bg: hsl(var(--control-track) / 0.5);
   }
 }
 

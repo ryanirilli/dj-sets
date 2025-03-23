@@ -1,9 +1,22 @@
 import { getColorPalettes } from "@/types/colorPalettes";
 import { useSceneContext } from "@/contexts/SceneContext";
+import { useMemo } from "react";
 
 const ColorPaletteSelector = () => {
-  const { colorPalette, setColorPalette } = useSceneContext();
-  const palettes = getColorPalettes();
+  const { colorPalette, setColorPalette, setAutoRotateColors } =
+    useSceneContext();
+
+  // Memoize palettes to prevent unnecessary recalculations
+  const palettes = useMemo(() => getColorPalettes(), []);
+
+  // Define classes outside of the render loop
+  const activeClass = "bg-[var(--ui-active-bg)]";
+  const inactiveClass = "hover:bg-[var(--ui-hover-bg)]";
+
+  const handlePaletteSelect = (paletteId: string) => {
+    setColorPalette(paletteId);
+    setAutoRotateColors(false);
+  };
 
   return (
     <div className="space-y-4 flex flex-col h-full">
@@ -12,15 +25,10 @@ const ColorPaletteSelector = () => {
           {palettes.map((palette) => (
             <button
               key={palette.id}
-              onClick={() => setColorPalette(palette.id)}
-              className={`
-                flex flex-col p-3 rounded-lg transition-all
-                ${
-                  colorPalette.id === palette.id
-                    ? "bg-white/15 ring-1 ring-white/30"
-                    : "bg-black/30 hover:bg-white/10"
-                }
-              `}
+              onClick={() => handlePaletteSelect(palette.id)}
+              className={`flex flex-col p-3 rounded-lg transition-all ${
+                colorPalette.id === palette.id ? activeClass : inactiveClass
+              }`}
             >
               <div className="flex-1 text-left text-sm font-medium text-white/90 mb-2">
                 {palette.name}
