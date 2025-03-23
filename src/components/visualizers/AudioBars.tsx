@@ -293,7 +293,7 @@ const AudioBars = ({ audioData }: VisualizerProps) => {
     // If audio is not playing, just update heights (colors are handled above)
     else if (!isPlaying) {
       // Reset or update all cylinders
-      cylinderRefs.current.forEach((cylinder, i) => {
+      cylinderRefs.current.forEach((cylinder) => {
         if (cylinder) {
           // Smooth transition back to base height
           const currentHeight = cylinder.scale.y;
