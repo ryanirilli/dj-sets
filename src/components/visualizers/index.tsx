@@ -64,5 +64,5 @@ export function getVisualizerInfo(
 
 // Function to get the default visualizer type
 export function getDefaultVisualizerType(): VisualizerType {
-  return "circular";
+  return "smoke";
 }

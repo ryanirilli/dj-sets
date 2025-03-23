@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider } from "@/contexts/SceneContext";
+import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { Toolbar } from "@/components/Toolbar";
 import { VisualizerType } from "@/types/visualizers";
 import {
@@ -26,20 +27,98 @@ const VisualizerLoading = () => (
   </div>
 );
 
-interface HomeContentProps {
-  visualizerType: VisualizerType;
-  onVisualizerChange: (type: VisualizerType) => void;
-}
-
-function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
-  const { audioData } = useAudio();
+function HomeContent() {
+  const { audioData, setAudioFile, currentAudioFile } = useAudio();
+  const { settings, updateSettings } = useSettings();
   const [isChangingVisualizer, setIsChangingVisualizer] = useState(false);
   const [activeVisualizerType, setActiveVisualizerType] =
-    useState<VisualizerType>(visualizerType);
+    useState<VisualizerType>(settings.visualizerType);
+
+  // Log initial state
+  useEffect(() => {
+    console.log(
+      "[DEBUG] Initial settings visualizer type:",
+      settings.visualizerType
+    );
+    console.log(
+      "[DEBUG] Initial active visualizer type:",
+      activeVisualizerType
+    );
+    console.log(
+      "[DEBUG] Initial audio file from settings:",
+      settings.selectedAudioFile
+    );
+    console.log("[DEBUG] Current audio file in context:", currentAudioFile);
+
+    // Log the URL to see if it has a visualizer parameter
+    console.log("[DEBUG] Current URL:", window.location.href);
+  }, [
+    settings.visualizerType,
+    activeVisualizerType,
+    settings.selectedAudioFile,
+    currentAudioFile,
+  ]);
+
+  // Initialize audio file from settings
+  useEffect(() => {
+    // If there's an audio file in settings and it's different from current
+    if (
+      settings.selectedAudioFile &&
+      settings.selectedAudioFile !== currentAudioFile
+    ) {
+      console.log(
+        "[DEBUG] Setting audio file from settings:",
+        settings.selectedAudioFile
+      );
+      setAudioFile(settings.selectedAudioFile);
+    } else if (currentAudioFile && !settings.selectedAudioFile) {
+      // If audio is playing but not in settings, update settings
+      console.log(
+        "[DEBUG] Saving current audio file to settings:",
+        currentAudioFile
+      );
+      updateSettings("selectedAudioFile", currentAudioFile);
+    }
+  }, [
+    settings.selectedAudioFile,
+    currentAudioFile,
+    setAudioFile,
+    updateSettings,
+  ]);
+
+  // Make sure we initialize with the correct visualizer type on mount
+  useEffect(() => {
+    const initialType = settings.visualizerType;
+    console.log("[DEBUG] Initializing with visualizer type:", initialType);
+
+    // If we don't have a valid type, force update to the default
+    if (!["smoke", "circular", "icosahedron"].includes(initialType)) {
+      const defaultType = getDefaultVisualizerType();
+      console.log("[DEBUG] Invalid initial type, using default:", defaultType);
+      updateSettings("visualizerType", defaultType);
+    } else {
+      setActiveVisualizerType(initialType);
+    }
+  }, [settings.visualizerType, updateSettings]);
 
   // Handle visualizer switching with cleanup
   useEffect(() => {
-    if (visualizerType !== activeVisualizerType) {
+    console.log(
+      "[DEBUG] Settings visualizer type changed to:",
+      settings.visualizerType
+    );
+    console.log(
+      "[DEBUG] Current active visualizer type:",
+      activeVisualizerType
+    );
+
+    if (settings.visualizerType !== activeVisualizerType) {
+      console.log(
+        "[DEBUG] Switching visualizer from",
+        activeVisualizerType,
+        "to",
+        settings.visualizerType
+      );
       // Visualizer is changing, trigger transition
       setIsChangingVisualizer(true);
 
@@ -48,16 +127,25 @@ function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
 
       // Add a small delay to allow for proper transition
       const timer = setTimeout(() => {
-        setActiveVisualizerType(visualizerType);
+        setActiveVisualizerType(settings.visualizerType);
         setIsChangingVisualizer(false);
       }, 300);
 
       return () => clearTimeout(timer);
     }
-  }, [visualizerType, activeVisualizerType]);
+  }, [settings.visualizerType, activeVisualizerType]);
+
+  // Function to handle visualizer changes
+  const handleVisualizerChange = (type: VisualizerType) => {
+    console.log("[DEBUG] handleVisualizerChange called with:", type);
+    // This will trigger the effect above
+    updateSettings("visualizerType", type);
+  };
 
   // Render the selected visualizer component
   const renderVisualizer = () => {
+    console.log("[DEBUG] Rendering visualizer for type:", activeVisualizerType);
+
     switch (activeVisualizerType) {
       case "circular":
         return <AudioBars audioData={audioData} />;
@@ -66,11 +154,29 @@ function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
       case "icosahedron":
         return <IcosahedronVisualizer audioData={audioData} />;
       default:
-        // If invalid type, use default
-        if (visualizerType !== getDefaultVisualizerType()) {
-          onVisualizerChange(getDefaultVisualizerType());
+        // If we get here, it means the activeVisualizerType is invalid
+        console.log(
+          "[DEBUG] Invalid activeVisualizerType:",
+          activeVisualizerType
+        );
+        const defaultType = getDefaultVisualizerType();
+        console.log("[DEBUG] Using default type:", defaultType);
+
+        // Update settings to use the default type
+        updateSettings("visualizerType", defaultType);
+
+        // Return the appropriate component based on default type
+        switch (defaultType) {
+          case "circular":
+            return <AudioBars audioData={audioData} />;
+          case "smoke":
+            return <SmokeVisualizer audioData={audioData} />;
+          case "icosahedron":
+            return <IcosahedronVisualizer audioData={audioData} />;
+          default:
+            // Fallback to Smoke as absolute default
+            return <SmokeVisualizer audioData={audioData} />;
         }
-        return <IcosahedronVisualizer audioData={audioData} />;
     }
   };
 
@@ -85,8 +191,8 @@ function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
       }
     >
       <Toolbar
-        selectedVisualizer={visualizerType}
-        onVisualizerChange={onVisualizerChange}
+        selectedVisualizer={settings.visualizerType}
+        onVisualizerChange={handleVisualizerChange}
         visualizersInfo={visualizersInfo}
       />
     </SceneProvider>
@@ -94,28 +200,27 @@ function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
 }
 
 export default function Home() {
-  const [visualizerType, setVisualizerType] = useState<VisualizerType>(
-    getDefaultVisualizerType()
-  );
-
-  // Optimized visualizer change handler
-  const handleVisualizerChange = (type: VisualizerType) => {
-    // Force cleanup before changing visualizer
-    if (typeof window !== "undefined") {
-      // Clear Three.js cache
-      THREE.Cache.clear();
-    }
-
-    // Update visualizer type
-    setVisualizerType(type);
-  };
-
   return (
-    <AudioProvider>
-      <HomeContent
-        visualizerType={visualizerType}
-        onVisualizerChange={handleVisualizerChange}
-      />
-    </AudioProvider>
+    <SettingsProvider>
+      <Suspense fallback={<LoadingFallback />}>
+        <AudioProvider>
+          <HomeContent />
+        </AudioProvider>
+      </Suspense>
+    </SettingsProvider>
+  );
+}
+
+// Simple loading fallback
+function LoadingFallback() {
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-black">
+      <div className="text-center">
+        <div className="mb-4 text-xl text-white">Loading...</div>
+        <div className="w-32 h-1 mx-auto bg-gray-700 rounded-full overflow-hidden">
+          <div className="h-full w-1/2 bg-blue-500 animate-pulse"></div>
+        </div>
+      </div>
+    </div>
   );
 }

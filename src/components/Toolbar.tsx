@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import AudioSelector from "./AudioSelector";
 import ColorPaletteSelector from "./ColorPaletteSelector";
 import EnvironmentSelector from "./EnvironmentSelector";
@@ -38,6 +39,8 @@ export const Toolbar = ({
     duration,
     audioRef,
   } = useAudio();
+
+  // Use scene context as a bridge to settings context
   const {
     autoRotate,
     setAutoRotate,
@@ -48,16 +51,12 @@ export const Toolbar = ({
     showPerformanceStats,
     togglePerformanceStats,
   } = useSceneContext();
-  const progressRef = useRef<HTMLDivElement>(null);
 
-  // Track which sections are open
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    visualizers: true,
-    camera: false,
-    colors: false,
-    audio: false,
-    environment: false,
-  });
+  // Access settings context for persistent UI state
+  const { settings, toggleSectionOpen, updateSettings } = useSettings();
+  const { openSections } = settings;
+
+  const progressRef = useRef<HTMLDivElement>(null);
 
   // Format time in minutes:seconds
   const formatTime = useCallback((time: number) => {
@@ -86,11 +85,9 @@ export const Toolbar = ({
     [audioRef, duration]
   );
 
-  const handleSectionToggle = (value: string) => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [value]: !prev[value],
-    }));
+  // Use the toggleSectionOpen from settings context
+  const handleSectionToggle = (sectionKey: string) => {
+    toggleSectionOpen(sectionKey);
   };
 
   return (
@@ -200,6 +197,14 @@ export const Toolbar = ({
                               }
                               size="sm"
                               onClick={() => {
+                                console.log(
+                                  "[DEBUG] Toolbar visualizer button clicked:",
+                                  visualizer.id
+                                );
+                                console.log(
+                                  "[DEBUG] Current selected visualizer:",
+                                  selectedVisualizer
+                                );
                                 onVisualizerChange(visualizer.id);
                               }}
                               title={visualizer.description}
@@ -354,7 +359,15 @@ export const Toolbar = ({
                       >
                         <div className="pt-2 px-6">
                           <AudioSelector
-                            onSelect={setAudioFile}
+                            onSelect={(file) => {
+                              console.log(
+                                "[DEBUG] Audio file selected in toolbar:",
+                                file
+                              );
+                              setAudioFile(file);
+                              // Also update the settings to persist the selection in URL
+                              updateSettings("selectedAudioFile", file);
+                            }}
                             selectedFile={currentAudioFile}
                           />
                         </div>

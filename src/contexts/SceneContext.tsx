@@ -10,6 +10,7 @@ import {
   getColorPalettes,
 } from "@/types/colorPalettes";
 import StatsDisplay from "@/components/StatsDisplay";
+import { useSettings } from "@/contexts/SettingsContext";
 
 // Add StatsData interface
 interface StatsData {
@@ -280,6 +281,55 @@ const RendererStats = () => {
   return null;
 };
 
+// Component to handle camera state persistence
+const CameraPositionManager = () => {
+  const { camera, controls } = useThree();
+  const { updateCameraPosition } = useSettings();
+  const { settings } = useSettings();
+
+  // Set initial camera position from URL
+  useEffect(() => {
+    if (
+      controls &&
+      camera &&
+      settings.cameraPosition &&
+      settings.cameraTarget
+    ) {
+      // Set camera position from settings
+      camera.position.copy(settings.cameraPosition);
+
+      // Set OrbitControls target - need to type cast controls to access target property
+      const orbitControls = controls as unknown as {
+        target: THREE.Vector3;
+        update: () => void;
+      };
+      if (orbitControls.target) {
+        orbitControls.target.copy(settings.cameraTarget);
+        orbitControls.update();
+      }
+    }
+  }, [camera, controls, settings.cameraPosition, settings.cameraTarget]);
+
+  // Track camera position changes and update settings
+  useFrame(() => {
+    if (camera && controls) {
+      // Throttle updates to reduce performance impact
+      if (Math.random() < 0.05) {
+        // Only update ~5% of frames
+        const orbitControls = controls as unknown as { target: THREE.Vector3 };
+        if (orbitControls.target) {
+          updateCameraPosition(
+            camera.position.clone(),
+            orbitControls.target.clone()
+          );
+        }
+      }
+    }
+  });
+
+  return null;
+};
+
 // Custom environment component that applies a color tint to match the palette
 const ColorTintedEnvironment = () => {
   const {
@@ -394,28 +444,30 @@ const ColorTintedEnvironment = () => {
 };
 
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
-  const [autoRotate, setAutoRotate] = useState(true);
-  const [showGrid, setShowGrid] = useState(false);
-  const [autoRotateColors, setAutoRotateColors] = useState(true);
-  const [environment, setEnvironment] = useState<string | null>(null);
-  const [backgroundBlurriness, setBackgroundBlurriness] = useState(0);
-  const [backgroundIntensity, setBackgroundIntensity] = useState(0.5);
-  const [showPerformanceStats, setShowPerformanceStats] = useState(false);
-  const [colorPalette, setColorPaletteState] = useState<ColorPalette>(
-    getColorPaletteById(DEFAULT_PALETTE_ID) as ColorPalette
-  );
+  // Use SettingsContext for state management
+  const { settings, updateSettings, getColorPalette } = useSettings();
   const [nextPalette, setNextPalette] = useState<ColorPalette | null>(null);
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const colorRotationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const transitionFrameRef = useRef<number | null>(null);
   const lastTransitionTimeRef = useRef<number>(0);
-  const [environmentTintStrength, setEnvironmentTintStrength] = useState(0.5);
   const [stats, setStats] = useState<StatsData>({
     fps: 0,
     geometries: 0,
     textures: 0,
   });
+
+  // Convert settings to local state variables
+  const autoRotate = settings.autoRotate;
+  const showGrid = settings.showGrid;
+  const autoRotateColors = settings.autoRotateColors;
+  const colorPalette = getColorPalette();
+  const environment = settings.environment;
+  const backgroundBlurriness = settings.backgroundBlurriness;
+  const backgroundIntensity = settings.backgroundIntensity;
+  const environmentTintStrength = settings.environmentTintStrength;
+  const showPerformanceStats = settings.showPerformanceStats;
 
   // Debug auto-rotate state
   useEffect(() => {
@@ -424,12 +476,63 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
 
   // Function to toggle auto-rotation
   const toggleAutoRotate = useCallback(() => {
-    setAutoRotate((prev) => {
-      const newValue = !prev;
-      console.log("Toggling auto-rotate to:", newValue);
-      return newValue;
-    });
-  }, []);
+    updateSettings("autoRotate", !autoRotate);
+    console.log("Toggling auto-rotate to:", !autoRotate);
+  }, [autoRotate, updateSettings]);
+
+  // Wrapper functions for settings updates
+  const setAutoRotate = useCallback(
+    (value: boolean) => {
+      updateSettings("autoRotate", value);
+    },
+    [updateSettings]
+  );
+
+  const setShowGrid = useCallback(
+    (value: boolean) => {
+      updateSettings("showGrid", value);
+    },
+    [updateSettings]
+  );
+
+  const setAutoRotateColors = useCallback(
+    (value: boolean) => {
+      updateSettings("autoRotateColors", value);
+    },
+    [updateSettings]
+  );
+
+  const setEnvironment = useCallback(
+    (value: string | null) => {
+      updateSettings("environment", value);
+    },
+    [updateSettings]
+  );
+
+  const setBackgroundBlurriness = useCallback(
+    (value: number) => {
+      updateSettings("backgroundBlurriness", value);
+    },
+    [updateSettings]
+  );
+
+  const setBackgroundIntensity = useCallback(
+    (value: number) => {
+      updateSettings("backgroundIntensity", value);
+    },
+    [updateSettings]
+  );
+
+  const setEnvironmentTintStrength = useCallback(
+    (value: number) => {
+      updateSettings("environmentTintStrength", value);
+    },
+    [updateSettings]
+  );
+
+  const togglePerformanceStats = useCallback(() => {
+    updateSettings("showPerformanceStats", !showPerformanceStats);
+  }, [showPerformanceStats, updateSettings]);
 
   // Create a transitioning palette by interpolating between current and next
   const getTransitioningPalette = useCallback((): ColorPalette => {
@@ -476,11 +579,11 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
           setTransitionProgress(0);
         } else {
           // Immediate change if auto-rotate is off
-          setColorPaletteState(palette);
+          updateSettings("colorPaletteId", paletteId);
         }
       }
     },
-    [autoRotateColors]
+    [autoRotateColors, updateSettings]
   );
 
   // Animation loop for smooth transitions
@@ -501,7 +604,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
           transitionFrameRef.current = requestAnimationFrame(animateTransition);
         } else {
           // Transition complete
-          setColorPaletteState(nextPalette);
+          updateSettings("colorPaletteId", nextPalette.id);
           setNextPalette(null);
           setIsTransitioning(false);
           setTransitionProgress(0);
@@ -517,7 +620,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
         }
       };
     }
-  }, [isTransitioning, nextPalette]);
+  }, [isTransitioning, nextPalette, updateSettings]);
 
   // Handle auto color palette rotation
   useEffect(() => {
@@ -565,11 +668,6 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   useEffect(() => {
     console.log("Scene content updated:", !!sceneContent);
   }, [sceneContent]);
-
-  // Toggle performance stats display
-  const togglePerformanceStats = useCallback(() => {
-    setShowPerformanceStats((prev) => !prev);
-  }, []);
 
   // Add performance stats to context
   const contextValue: SceneContextType = {
@@ -677,6 +775,9 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
 
             {/* Add the auto-rotate manager to ensure the controls are updated */}
             <AutoRotateManager autoRotate={autoRotate} />
+
+            {/* Add camera position manager for URL persistence */}
+            <CameraPositionManager />
 
             {/* Add a grid helper for debugging */}
             {showGrid && (

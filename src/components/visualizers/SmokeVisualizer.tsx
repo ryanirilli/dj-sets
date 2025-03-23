@@ -461,7 +461,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     }
 
     return { positions, scales, offsets, velocities };
-  }, [PARTICLE_COUNT]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Create active state array, burst time array, color array, rotation array, and lifetime array
   useEffect(() => {
@@ -486,7 +487,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     setTurbulenceArray(turbulence);
     setBandArray(bands);
     setInitialVelocityArray(initialVelocities);
-  }, [PARTICLE_COUNT]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Create uniforms for the shader
   const uniforms = useMemo(
@@ -526,7 +528,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         activeParticlesRef.current = 0;
       }
     }
-  }, [currentAudioFile, PARTICLE_COUNT]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentAudioFile]);
 
   // Update the useEffect for audio playback state changes
   useEffect(() => {
@@ -555,7 +558,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         activeParticlesRef.current = 0;
       }
     }
-  }, [isPlaying, PARTICLE_COUNT]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying]);
 
   // Calculate average audio amplitude from frequency data
   const calculateAudioAmplitude = (audioData: Uint8Array): number => {

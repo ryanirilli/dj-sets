@@ -1,10 +1,14 @@
 import { getColorPalettes } from "@/types/colorPalettes";
 import { useSceneContext } from "@/contexts/SceneContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { useMemo } from "react";
 
 const ColorPaletteSelector = () => {
-  const { colorPalette, setColorPalette, setAutoRotateColors } =
-    useSceneContext();
+  // Get color palette info from SceneContext for visual changes
+  const { colorPalette, setColorPalette } = useSceneContext();
+
+  // Get settings access for persistence
+  const { updateSettings } = useSettings();
 
   // Memoize palettes to prevent unnecessary recalculations
   const palettes = useMemo(() => getColorPalettes(), []);
@@ -14,8 +18,11 @@ const ColorPaletteSelector = () => {
   const inactiveClass = "hover:bg-[var(--ui-hover-bg)]";
 
   const handlePaletteSelect = (paletteId: string) => {
+    // Update palette via SceneContext for immediate visual feedback
     setColorPalette(paletteId);
-    setAutoRotateColors(false);
+
+    // Turn off auto-rotate colors through the settings context for persistence
+    updateSettings("autoRotateColors", false);
   };
 
   return (

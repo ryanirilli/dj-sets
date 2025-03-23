@@ -1,4 +1,5 @@
 import { useSceneContext } from "@/contexts/SceneContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { useState, useEffect, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ const environments = [
 ];
 
 const EnvironmentSelector = () => {
+  // Get environment data from scene context for immediate visual updates
   const {
     environment,
     setEnvironment,
@@ -29,6 +31,9 @@ const EnvironmentSelector = () => {
     environmentTintStrength,
     setEnvironmentTintStrength,
   } = useSceneContext();
+
+  // Get settings access for persistence
+  const { updateSettings } = useSettings();
 
   // Local state for slider values - only used for UI rendering
   const [localBlurriness, setLocalBlurriness] = useState(backgroundBlurriness);
@@ -66,14 +71,22 @@ const EnvironmentSelector = () => {
       // Save current settings
       const savedSettings = userSettingsRef.current;
 
-      // Change the environment
+      // Change the environment via scene context for immediate updates
       setEnvironment(selectedEnvironment);
+
+      // Update in settings context for persistence
+      updateSettings("environment", selectedEnvironment);
 
       // Apply saved settings after environment changes
       requestAnimationFrame(() => {
         setBackgroundBlurriness(savedSettings.blurriness);
         setBackgroundIntensity(savedSettings.intensity);
         setEnvironmentTintStrength(savedSettings.tintStrength);
+
+        // Also update in settings for persistence
+        updateSettings("backgroundBlurriness", savedSettings.blurriness);
+        updateSettings("backgroundIntensity", savedSettings.intensity);
+        updateSettings("environmentTintStrength", savedSettings.tintStrength);
       });
     }
   }, [
@@ -83,36 +96,49 @@ const EnvironmentSelector = () => {
     setBackgroundBlurriness,
     setBackgroundIntensity,
     setEnvironmentTintStrength,
+    updateSettings,
   ]);
 
   // Optimized handler for blurriness slider
   const handleBlurrinessChange = (value: number[]) => {
     const newValue = value[0];
-    // Update both local and context state
+    // Update local and context state for immediate feedback
     setLocalBlurriness(newValue);
     setBackgroundBlurriness(newValue);
-    // Store in settings
-    userSettingsRef.current.blurriness = newValue;
+
+    // Update settings context with a throttle for persistence
+    if (Math.abs(newValue - userSettingsRef.current.blurriness) > 0.05) {
+      updateSettings("backgroundBlurriness", newValue);
+      userSettingsRef.current.blurriness = newValue;
+    }
   };
 
   // Optimized handler for intensity/opacity slider
   const handleIntensityChange = (value: number[]) => {
     const newValue = value[0];
-    // Update both local and context state
+    // Update local and context state for immediate feedback
     setLocalIntensity(newValue);
     setBackgroundIntensity(newValue);
-    // Store in settings
-    userSettingsRef.current.intensity = newValue;
+
+    // Update settings context with a throttle for persistence
+    if (Math.abs(newValue - userSettingsRef.current.intensity) > 0.05) {
+      updateSettings("backgroundIntensity", newValue);
+      userSettingsRef.current.intensity = newValue;
+    }
   };
 
   // Optimized handler for tint strength slider
   const handleTintStrengthChange = (value: number[]) => {
     const newValue = value[0];
-    // Update both local and context state
+    // Update local and context state for immediate feedback
     setLocalTintStrength(newValue);
     setEnvironmentTintStrength(newValue);
-    // Store in settings
-    userSettingsRef.current.tintStrength = newValue;
+
+    // Update settings context with a throttle for persistence
+    if (Math.abs(newValue - userSettingsRef.current.tintStrength) > 0.05) {
+      updateSettings("environmentTintStrength", newValue);
+      userSettingsRef.current.tintStrength = newValue;
+    }
   };
 
   return (
