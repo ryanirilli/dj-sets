@@ -4,8 +4,7 @@ import { useSceneContext } from "@/contexts/SceneContext";
 import AudioSelector from "./AudioSelector";
 import ColorPaletteSelector from "./ColorPaletteSelector";
 import EnvironmentSelector from "./EnvironmentSelector";
-import { VisualizerType } from "@/types/visualizers";
-import { getVisualizers } from "@/lib/visualizer-registry";
+import { VisualizerType, VisualizerInfo } from "@/types/visualizers";
 import { Progress } from "@/components/ui/progress";
 import {
   FaPlay,
@@ -21,11 +20,13 @@ import { Sheet, SheetContent, SheetClose } from "@/components/ui/custom-sheet";
 interface ToolbarProps {
   selectedVisualizer: VisualizerType;
   onVisualizerChange: (type: VisualizerType) => void;
+  visualizersInfo: VisualizerInfo[];
 }
 
 export const Toolbar = ({
   selectedVisualizer,
   onVisualizerChange,
+  visualizersInfo,
 }: ToolbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const {
@@ -47,7 +48,6 @@ export const Toolbar = ({
     showPerformanceStats,
     togglePerformanceStats,
   } = useSceneContext();
-  const visualizers = getVisualizers();
   const progressRef = useRef<HTMLDivElement>(null);
 
   // Track which sections are open
@@ -190,7 +190,7 @@ export const Toolbar = ({
                         }`}
                       >
                         <div className="flex flex-wrap gap-2 pt-2 px-4">
-                          {visualizers.map((visualizer) => (
+                          {visualizersInfo.map((visualizer) => (
                             <Button
                               key={visualizer.id}
                               variant={

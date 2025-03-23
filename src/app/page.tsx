@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider } from "@/contexts/SceneContext";
 import { Toolbar } from "@/components/Toolbar";
 import { VisualizerType } from "@/types/visualizers";
 import {
-  getVisualizer,
-  getDefaultVisualizer,
-  cleanupVisualizer,
-} from "@/lib/visualizer-registry";
-import { registerAllVisualizers } from "@/components/visualizers";
+  AudioBars,
+  SmokeVisualizer,
+  IcosahedronVisualizer,
+  getDefaultVisualizerType,
+  visualizersInfo,
+} from "@/components/visualizers";
 import * as THREE from "three";
 
 // Loading fallback component
@@ -32,70 +33,53 @@ interface HomeContentProps {
 
 function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
   const { audioData } = useAudio();
-  const [initialized, setInitialized] = useState(false);
   const [isChangingVisualizer, setIsChangingVisualizer] = useState(false);
-  const previousVisualizerRef = useRef<VisualizerType | null>(null);
-
-  // Register all visualizers on first render
-  useEffect(() => {
-    if (!initialized) {
-      registerAllVisualizers();
-      setInitialized(true);
-    }
-  }, [initialized]);
+  const [activeVisualizerType, setActiveVisualizerType] =
+    useState<VisualizerType>(visualizerType);
 
   // Handle visualizer switching with cleanup
   useEffect(() => {
-    if (
-      previousVisualizerRef.current &&
-      previousVisualizerRef.current !== visualizerType
-    ) {
-      // Visualizer is changing, trigger cleanup
+    if (visualizerType !== activeVisualizerType) {
+      // Visualizer is changing, trigger transition
       setIsChangingVisualizer(true);
-
-      // Clean up previous visualizer
-      cleanupVisualizer(previousVisualizerRef.current);
 
       // Force garbage collection
       THREE.Cache.clear();
 
-      // Add a small delay to allow for proper cleanup
+      // Add a small delay to allow for proper transition
       const timer = setTimeout(() => {
+        setActiveVisualizerType(visualizerType);
         setIsChangingVisualizer(false);
       }, 300);
 
       return () => clearTimeout(timer);
     }
+  }, [visualizerType, activeVisualizerType]);
 
-    previousVisualizerRef.current = visualizerType;
-  }, [visualizerType]);
-
-  // Debug log when visualizer type changes
-  useEffect(() => {
-    console.log("Visualizer type changed to:", visualizerType);
-    console.log("Audio data available:", !!audioData);
-  }, [visualizerType, audioData]);
-
-  // Get the selected visualizer from registry
-  const visualizer = getVisualizer(visualizerType);
-  const VisualizerComponent = visualizer?.component;
-
-  // If no visualizer is found, use the default one
-  if (!visualizer || !VisualizerComponent) {
-    const defaultVisualizer = getDefaultVisualizer();
-    if (defaultVisualizer && visualizerType !== defaultVisualizer.id) {
-      // If there's a default visualizer and it's not the current one, switch to it
-      onVisualizerChange(defaultVisualizer.id);
+  // Render the selected visualizer component
+  const renderVisualizer = () => {
+    switch (activeVisualizerType) {
+      case "circular":
+        return <AudioBars audioData={audioData} />;
+      case "smoke":
+        return <SmokeVisualizer audioData={audioData} />;
+      case "icosahedron":
+        return <IcosahedronVisualizer audioData={audioData} />;
+      default:
+        // If invalid type, use default
+        if (visualizerType !== getDefaultVisualizerType()) {
+          onVisualizerChange(getDefaultVisualizerType());
+        }
+        return <IcosahedronVisualizer audioData={audioData} />;
     }
-    return null; // Return null while switching to default
-  }
+  };
 
   return (
     <SceneProvider
       sceneContent={
         isChangingVisualizer ? null : (
           <Suspense fallback={<VisualizerLoading />}>
-            <VisualizerComponent audioData={audioData} />
+            {renderVisualizer()}
           </Suspense>
         )
       }
@@ -103,20 +87,19 @@ function HomeContent({ visualizerType, onVisualizerChange }: HomeContentProps) {
       <Toolbar
         selectedVisualizer={visualizerType}
         onVisualizerChange={onVisualizerChange}
+        visualizersInfo={visualizersInfo}
       />
     </SceneProvider>
   );
 }
 
 export default function Home() {
-  const [visualizerType, setVisualizerType] =
-    useState<VisualizerType>("icosahedron");
+  const [visualizerType, setVisualizerType] = useState<VisualizerType>(
+    getDefaultVisualizerType()
+  );
 
   // Optimized visualizer change handler
   const handleVisualizerChange = (type: VisualizerType) => {
-    // Clean up current visualizer before switching
-    cleanupVisualizer(visualizerType);
-
     // Force cleanup before changing visualizer
     if (typeof window !== "undefined") {
       // Clear Three.js cache
