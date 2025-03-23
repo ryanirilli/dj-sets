@@ -7,7 +7,6 @@ const ColorPaletteSelector = () => {
 
   return (
     <div className="space-y-4 flex flex-col h-full">
-      <div className="text-sm text-white/70 mb-1">Select a color palette:</div>
       <div className="overflow-y-auto pr-2 flex-1 custom-scrollbar">
         <div className="grid grid-cols-1 gap-3">
           {palettes.map((palette) => (

@@ -173,7 +173,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("visualizers")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
                       >
                         Visualizers
                         <FaChevronDown
@@ -189,7 +189,7 @@ export const Toolbar = ({
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="flex flex-wrap gap-2 pt-2 px-4">
+                        <div className="flex flex-wrap gap-2 pt-2 px-6">
                           {visualizersInfo.map((visualizer) => (
                             <Button
                               key={visualizer.id}
@@ -216,7 +216,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("environment")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
                       >
                         Environment
                         <FaChevronDown
@@ -232,7 +232,7 @@ export const Toolbar = ({
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="pt-2 px-4">
+                        <div className="pt-2 px-6">
                           <EnvironmentSelector />
                         </div>
                       </div>
@@ -243,7 +243,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("colors")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
                       >
                         Color Palette
                         <FaChevronDown
@@ -259,7 +259,7 @@ export const Toolbar = ({
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="flex flex-col space-y-4 pt-2 px-4">
+                        <div className="flex flex-col space-y-4 pt-2 px-6">
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                               Auto-Cycle Colors
@@ -281,7 +281,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("camera")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
                       >
                         Camera Settings
                         <FaChevronDown
@@ -297,7 +297,7 @@ export const Toolbar = ({
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="flex flex-col space-y-4 pt-2 px-4">
+                        <div className="flex flex-col space-y-4 pt-2 px-6">
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                               Auto-Rotate
@@ -336,7 +336,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("audio")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
                       >
                         Audio
                         <FaChevronDown
@@ -352,7 +352,7 @@ export const Toolbar = ({
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="pt-2 px-4">
+                        <div className="pt-2 px-6">
                           <AudioSelector
                             onSelect={setAudioFile}
                             selectedFile={currentAudioFile}
