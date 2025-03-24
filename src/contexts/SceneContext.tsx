@@ -286,6 +286,88 @@ const CameraPositionManager = () => {
   const { camera, controls } = useThree();
   const { updateCameraPosition } = useSettings();
   const { settings } = useSettings();
+  const lastPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const lastTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const userInteractingRef = useRef(false);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Track when user starts/stops interacting with controls
+  useEffect(() => {
+    if (!controls) return;
+
+    // Get the DOM element controlled by orbit controls
+    const orbitControls = controls as unknown as {
+      domElement: HTMLElement;
+    };
+
+    // Add event listeners for user interaction
+    const startInteraction = () => {
+      userInteractingRef.current = true;
+    };
+
+    const endInteraction = () => {
+      userInteractingRef.current = true;
+
+      // Set a short timeout to update camera position after user finishes interacting
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+
+      updateTimeoutRef.current = setTimeout(() => {
+        // Check if position actually changed meaningfully
+        if (camera && controls) {
+          const orbitTarget = (controls as unknown as { target: THREE.Vector3 })
+            .target;
+
+          const positionChanged =
+            !lastPositionRef.current.equals(camera.position) &&
+            lastPositionRef.current.distanceTo(camera.position) > 0.01;
+
+          const targetChanged =
+            !lastTargetRef.current.equals(orbitTarget) &&
+            lastTargetRef.current.distanceTo(orbitTarget) > 0.01;
+
+          // Only update if position or target changed significantly
+          if (positionChanged || targetChanged) {
+            updateCameraPosition(camera.position.clone(), orbitTarget.clone());
+            lastPositionRef.current.copy(camera.position);
+            lastTargetRef.current.copy(orbitTarget);
+          }
+        }
+
+        userInteractingRef.current = false;
+      }, 500);
+    };
+
+    // Set up the event listeners
+    const element = orbitControls.domElement;
+    element.addEventListener("mousedown", startInteraction);
+    element.addEventListener("touchstart", startInteraction);
+    element.addEventListener("mouseup", endInteraction);
+    element.addEventListener("touchend", endInteraction);
+    element.addEventListener("wheel", endInteraction);
+
+    // Initialize last position/target for comparison
+    if (camera && controls) {
+      const orbitTarget = (controls as unknown as { target: THREE.Vector3 })
+        .target;
+      lastPositionRef.current.copy(camera.position);
+      lastTargetRef.current.copy(orbitTarget);
+    }
+
+    return () => {
+      // Clean up event listeners
+      element.removeEventListener("mousedown", startInteraction);
+      element.removeEventListener("touchstart", startInteraction);
+      element.removeEventListener("mouseup", endInteraction);
+      element.removeEventListener("touchend", endInteraction);
+      element.removeEventListener("wheel", endInteraction);
+
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [controls, camera, updateCameraPosition]);
 
   // Set initial camera position from URL
   useEffect(() => {
@@ -306,26 +388,15 @@ const CameraPositionManager = () => {
       if (orbitControls.target) {
         orbitControls.target.copy(settings.cameraTarget);
         orbitControls.update();
+
+        // Update last position/target refs to match initial settings
+        lastPositionRef.current.copy(settings.cameraPosition);
+        lastTargetRef.current.copy(settings.cameraTarget);
       }
     }
   }, [camera, controls, settings.cameraPosition, settings.cameraTarget]);
 
-  // Track camera position changes and update settings
-  useFrame(() => {
-    if (camera && controls) {
-      // Throttle updates to reduce performance impact
-      if (Math.random() < 0.05) {
-        // Only update ~5% of frames
-        const orbitControls = controls as unknown as { target: THREE.Vector3 };
-        if (orbitControls.target) {
-          updateCameraPosition(
-            camera.position.clone(),
-            orbitControls.target.clone()
-          );
-        }
-      }
-    }
-  });
+  // No need for useFrame tracking anymore - we're only updating when user interacts
 
   return null;
 };

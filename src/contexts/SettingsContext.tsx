@@ -351,15 +351,23 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
       const urlParams = params.toString();
 
-      console.log(
-        "[DEBUG] Updating URL with visualizer:",
-        settings.visualizerType
-      );
-      console.log("[DEBUG] Full URL params:", urlParams);
+      // Get current URL search params to compare
+      const currentUrlParams = new URLSearchParams(
+        window.location.search
+      ).toString();
 
-      // Update URL without causing a navigation
-      router.replace(`${pathname}?${urlParams}`, { scroll: false });
-    }, 500); // Debounce URL updates
+      // Only update URL if params actually changed
+      if (urlParams !== currentUrlParams) {
+        console.log(
+          "[DEBUG] Updating URL with visualizer:",
+          settings.visualizerType
+        );
+        console.log("[DEBUG] Full URL params:", urlParams);
+
+        // Update URL without causing a navigation
+        router.replace(`${pathname}?${urlParams}`, { scroll: false });
+      }
+    }, 1000); // Increased debounce timeout from 500ms to 1000ms
 
     return () => clearTimeout(updateTimeout);
   }, [settings, pathname, router, isSettingsLoaded]);

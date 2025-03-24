@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect, useState, useCallback } from "react";
+import { useRef, useMemo, useEffect, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useAudio } from "@/contexts/AudioContext";
@@ -12,6 +12,18 @@ const SIZE = 512;
 const PARTICLE_COUNT = 500;
 const AVG_AUDIO_DATA_THRESHOLD = 25;
 const PARTICLE_LIFETIME = 0.5;
+
+// Pre-initialized arrays with default values
+const ACTIVE_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const BURST_TIME_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const COLOR_ARRAY = new Float32Array(PARTICLE_COUNT * 3).fill(0);
+const ROTATION_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const LIFETIME_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const FADE_START_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const FADE_LENGTH_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const TURBULENCE_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const BAND_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
+const INITIAL_VELOCITY_ARRAY = new Float32Array(PARTICLE_COUNT * 3).fill(0);
 
 // Create a smoke texture
 const createSmokeTexture = () => {
@@ -389,25 +401,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   const { isPlaying, onBeat, currentAudioFile, avgAudioLevel } = useAudio();
   const pointsRef = useRef<THREE.Points>(null);
   const activeParticlesRef = useRef(0);
-  const [activeArray, setActiveArray] = useState<Float32Array | null>(null);
-  const [burstTimeArray, setBurstTimeArray] = useState<Float32Array | null>(
-    null
-  );
-  const [colorArray, setColorArray] = useState<Float32Array | null>(null);
-  const [rotationArray, setRotationArray] = useState<Float32Array | null>(null);
-  const [lifetimeArray, setLifetimeArray] = useState<Float32Array | null>(null);
-  const [fadeStartArray, setFadeStartArray] = useState<Float32Array | null>(
-    null
-  );
-  const [fadeLengthArray, setFadeLengthArray] = useState<Float32Array | null>(
-    null
-  );
-  const [turbulenceArray, setTurbulenceArray] = useState<Float32Array | null>(
-    null
-  );
-  const [bandArray, setBandArray] = useState<Float32Array | null>(null);
-  const [initialVelocityArray, setInitialVelocityArray] =
-    useState<Float32Array | null>(null);
 
   // Use refs instead of state for these values to reduce re-renders
   const lastAudioAmplitudeRef = useRef(0);
@@ -461,33 +454,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     }
 
     return { positions, scales, offsets, velocities };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Create active state array, burst time array, color array, rotation array, and lifetime array
-  useEffect(() => {
-    const active = new Float32Array(PARTICLE_COUNT).fill(0);
-    const burstTime = new Float32Array(PARTICLE_COUNT).fill(0);
-    const colors = new Float32Array(PARTICLE_COUNT * 3).fill(0);
-    const rotations = new Float32Array(PARTICLE_COUNT).fill(0);
-    const lifetimes = new Float32Array(PARTICLE_COUNT).fill(0);
-    const fadeStarts = new Float32Array(PARTICLE_COUNT).fill(0);
-    const fadeLengths = new Float32Array(PARTICLE_COUNT).fill(0);
-    const turbulence = new Float32Array(PARTICLE_COUNT).fill(0);
-    const bands = new Float32Array(PARTICLE_COUNT).fill(0);
-    const initialVelocities = new Float32Array(PARTICLE_COUNT * 3).fill(0);
-
-    setActiveArray(active);
-    setBurstTimeArray(burstTime);
-    setColorArray(colors);
-    setRotationArray(rotations);
-    setLifetimeArray(lifetimes);
-    setFadeStartArray(fadeStarts);
-    setFadeLengthArray(fadeLengths);
-    setTurbulenceArray(turbulence);
-    setBandArray(bands);
-    setInitialVelocityArray(initialVelocities);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Create uniforms for the shader
@@ -528,8 +494,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         activeParticlesRef.current = 0;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentAudioFile]);
+  }, [currentAudioFile, pointsRef]);
 
   // Update the useEffect for audio playback state changes
   useEffect(() => {
@@ -558,8 +523,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         activeParticlesRef.current = 0;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying]);
+  }, [isPlaying, pointsRef]);
 
   // Calculate average audio amplitude from frequency data
   const calculateAudioAmplitude = (audioData: Uint8Array): number => {
@@ -724,20 +688,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     currentTime: number,
     frequencyBands: number[]
   ) => {
-    if (
-      !pointsRef.current ||
-      !activeArray ||
-      !burstTimeArray ||
-      !colorArray ||
-      !rotationArray ||
-      !lifetimeArray ||
-      !fadeStartArray ||
-      !fadeLengthArray ||
-      !turbulenceArray ||
-      !bandArray ||
-      !initialVelocityArray
-    )
-      return;
+    if (!pointsRef.current) return;
 
     const geometry = pointsRef.current.geometry;
     const activeAttr = geometry.getAttribute(
@@ -850,7 +801,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
             : (Math.random() < 0.3 ? -Math.sign(posZ) : Math.sign(posZ)) *
               dirFactor;
 
-        // Outward factor INCREASED for more horizontal spread
         const outwardFactor = 0.05 + Math.random() * 0.1; // Increased from 0.05+0.1 to 0.15+0.2
 
         const swirling = 0.5;
@@ -950,7 +900,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
 
   // Update animation and audio reactivity
   useFrame(({ clock }) => {
-    if (!pointsRef.current || !activeArray || !audioData) return;
+    if (!pointsRef.current || !ACTIVE_ARRAY || !audioData) return;
 
     const currentTime = clock.getElapsedTime();
 
@@ -987,7 +937,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         }, 100);
       }
 
-      // Emit particles on beat - using audio data for particle count and properties
       emitParticleBurst(
         Math.floor(150 + audioAmplitude * 200),
         currentTime,
@@ -1048,21 +997,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     };
   }, []);
 
-  // Don't render until arrays are initialized
-  if (
-    !activeArray ||
-    !burstTimeArray ||
-    !colorArray ||
-    !rotationArray ||
-    !lifetimeArray ||
-    !fadeStartArray ||
-    !fadeLengthArray ||
-    !turbulenceArray ||
-    !bandArray ||
-    !initialVelocityArray ||
-    !smokeTexture
-  )
-    return null;
+  // Don't render until texture is initialized
+  if (!smokeTexture) return null;
 
   return (
     <>
@@ -1099,61 +1035,61 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
           <bufferAttribute
             attach="attributes-aInitialVelocity"
             count={PARTICLE_COUNT}
-            array={initialVelocityArray}
+            array={INITIAL_VELOCITY_ARRAY}
             itemSize={3}
           />
           <bufferAttribute
             attach="attributes-aActive"
             count={PARTICLE_COUNT}
-            array={activeArray}
+            array={ACTIVE_ARRAY}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aBurstTime"
             count={PARTICLE_COUNT}
-            array={burstTimeArray}
+            array={BURST_TIME_ARRAY}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aColor"
             count={PARTICLE_COUNT}
-            array={colorArray}
+            array={COLOR_ARRAY}
             itemSize={3}
           />
           <bufferAttribute
             attach="attributes-aRotation"
             count={PARTICLE_COUNT}
-            array={rotationArray}
+            array={ROTATION_ARRAY}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aLifetime"
             count={PARTICLE_COUNT}
-            array={lifetimeArray}
+            array={LIFETIME_ARRAY}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aFadeStart"
             count={PARTICLE_COUNT}
-            array={fadeStartArray}
+            array={FADE_START_ARRAY}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aFadeLength"
             count={PARTICLE_COUNT}
-            array={fadeLengthArray}
+            array={FADE_LENGTH_ARRAY}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aTurbulence"
             count={PARTICLE_COUNT}
-            array={turbulenceArray}
+            array={TURBULENCE_ARRAY}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aBand"
             count={PARTICLE_COUNT}
-            array={bandArray}
+            array={BAND_ARRAY}
             itemSize={1}
           />
         </bufferGeometry>
@@ -1170,9 +1106,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   );
 };
 
-// Add a cleanup function for the module
 export const cleanupSmokeVisualizer = () => {
-  // Dispose of cached texture when no longer needed
   if (smokeTextureCache) {
     smokeTextureCache.dispose();
     smokeTextureCache = null;
