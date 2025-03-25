@@ -50,12 +50,6 @@ export const Toolbar = ({
     setAutoRotateColors,
     showPerformanceStats,
     togglePerformanceStats,
-    showGrain,
-    setShowGrain,
-    grainIntensity,
-    setGrainIntensity,
-    grainBlendMode,
-    setGrainBlendMode,
   } = useSceneContext();
 
   // Access settings context for persistent UI state
@@ -333,57 +327,6 @@ export const Toolbar = ({
                               onCheckedChange={togglePerformanceStats}
                             />
                           </div>
-
-                          {/* Add Grain Texture Controls */}
-                          <div className="flex items-center justify-between">
-                            <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                              Show Grain
-                            </label>
-                            <Switch
-                              checked={showGrain}
-                              onCheckedChange={setShowGrain}
-                            />
-                          </div>
-
-                          {showGrain && (
-                            <>
-                              <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                  Grain Intensity
-                                </label>
-                                <input
-                                  type="range"
-                                  min="0"
-                                  max="1"
-                                  step="0.1"
-                                  value={grainIntensity}
-                                  onChange={(e) =>
-                                    setGrainIntensity(
-                                      parseFloat(e.target.value)
-                                    )
-                                  }
-                                  className="w-32"
-                                />
-                              </div>
-
-                              <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                  Blend Mode
-                                </label>
-                                <select
-                                  value={grainBlendMode}
-                                  onChange={(e) =>
-                                    setGrainBlendMode(e.target.value)
-                                  }
-                                  className="w-32 px-2 py-1 text-sm bg-background border border-border rounded-md"
-                                >
-                                  <option value="overlay">Overlay</option>
-                                  <option value="multiply">Multiply</option>
-                                  <option value="screen">Screen</option>
-                                </select>
-                              </div>
-                            </>
-                          )}
                         </div>
                       </div>
                     </div>

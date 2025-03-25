@@ -211,12 +211,6 @@ interface SceneContextType {
   togglePerformanceStats: () => void;
   stats: StatsData;
   setStats: (stats: StatsData) => void;
-  showGrain: boolean;
-  setShowGrain: (value: boolean) => void;
-  grainIntensity: number;
-  setGrainIntensity: (value: number) => void;
-  grainBlendMode: string;
-  setGrainBlendMode: (value: string) => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -242,12 +236,6 @@ const SceneContext = createContext<SceneContextType>({
   togglePerformanceStats: () => {},
   stats: { fps: 0, geometries: 0, textures: 0 },
   setStats: () => {},
-  showGrain: false,
-  setShowGrain: () => {},
-  grainIntensity: 0.5,
-  setGrainIntensity: () => {},
-  grainBlendMode: "overlay",
-  setGrainBlendMode: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -529,98 +517,6 @@ const ColorTintedEnvironment = () => {
   );
 };
 
-// Add new component for grain effect
-const GrainEffect = () => {
-  const { showGrain, grainIntensity } = useSceneContext();
-  const materialRef = useRef<THREE.ShaderMaterial | null>(null);
-  const textureRef = useRef<THREE.CanvasTexture | null>(null);
-
-  useEffect(() => {
-    // Create grain texture
-    if (!textureRef.current) {
-      const canvas = document.createElement("canvas");
-      canvas.width = 256;
-      canvas.height = 256;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        const imageData = ctx.createImageData(256, 256);
-        for (let i = 0; i < imageData.data.length; i += 4) {
-          const value = Math.random() * 255;
-          imageData.data[i] = value;
-          imageData.data[i + 1] = value;
-          imageData.data[i + 2] = value;
-          imageData.data[i + 3] = 255;
-        }
-        ctx.putImageData(imageData, 0, 0);
-        textureRef.current = new THREE.CanvasTexture(canvas);
-        textureRef.current.wrapS = THREE.RepeatWrapping;
-        textureRef.current.wrapT = THREE.RepeatWrapping;
-        textureRef.current.repeat.set(4, 4);
-      }
-    }
-
-    // Create shader material
-    if (!materialRef.current) {
-      const material = new THREE.ShaderMaterial({
-        uniforms: {
-          tDiffuse: { value: null },
-          grainTexture: { value: textureRef.current },
-          intensity: { value: grainIntensity },
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform sampler2D tDiffuse;
-          uniform sampler2D grainTexture;
-          uniform float intensity;
-          varying vec2 vUv;
-          void main() {
-            vec4 color = texture2D(tDiffuse, vUv);
-            vec4 grain = texture2D(grainTexture, vUv);
-            gl_FragColor = color + (grain - 0.5) * intensity;
-          }
-        `,
-      });
-      materialRef.current = material;
-    }
-
-    return () => {
-      if (materialRef.current) {
-        materialRef.current.dispose();
-      }
-      if (textureRef.current) {
-        textureRef.current.dispose();
-      }
-    };
-  }, [grainIntensity]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.intensity.value = grainIntensity;
-    }
-  }, [grainIntensity]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.visible = showGrain;
-    }
-  }, [showGrain]);
-
-  if (!showGrain) return null;
-
-  return (
-    <mesh renderOrder={-1000} scale={[100, 100, 100]}>
-      <planeGeometry args={[2, 2]} />
-      <primitive object={materialRef.current!} />
-    </mesh>
-  );
-};
-
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   // Use SettingsContext for state management
   const { settings, updateSettings, getColorPalette } = useSettings();
@@ -635,9 +531,6 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     geometries: 0,
     textures: 0,
   });
-  const [showGrain, setShowGrain] = useState(false);
-  const [grainIntensity, setGrainIntensity] = useState(0.5);
-  const [grainBlendMode, setGrainBlendMode] = useState("overlay");
 
   // Convert settings to local state variables
   const autoRotate = settings.autoRotate;
@@ -874,12 +767,6 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     togglePerformanceStats,
     stats,
     setStats,
-    showGrain,
-    setShowGrain,
-    grainIntensity,
-    setGrainIntensity,
-    grainBlendMode,
-    setGrainBlendMode,
   };
 
   return (
@@ -976,9 +863,6 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
 
             {/* Performance monitoring - only add the data collector */}
             {showPerformanceStats && <RendererStats />}
-
-            {/* Add GrainEffect component */}
-            <GrainEffect />
 
             <Preload all />
           </Canvas>
