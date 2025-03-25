@@ -18,41 +18,50 @@ const AudioSelector = ({ onSelect, selectedFile }: AudioSelectorProps) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // In a real app, you would fetch this list from an API
-    // For now, we'll simulate it with a static list
+    let isMounted = true;
+
     const fetchAudioFiles = async () => {
       try {
-        // This is a placeholder. In a real app, you would fetch this from an API endpoint
-        // that scans your /public/audio directory
         const response = await fetch("/api/audio-files");
         if (!response.ok) {
           throw new Error("Failed to fetch audio files");
         }
         const data = await response.json();
-        setAudioFiles(data.files);
 
-        // If we have files and none is selected, select the first one
-        if (data.files.length > 0 && !selectedFile) {
-          onSelect(`/audio/${data.files[0]}`);
+        if (isMounted) {
+          setAudioFiles(data.files);
+
+          // If we have files and none is selected, select the first one
+          if (data.files.length > 0 && !selectedFile) {
+            onSelect(`/audio/${data.files[0]}`);
+          }
         }
       } catch (err) {
         console.error("Error fetching audio files:", err);
-        setError("Failed to load audio files. Please try again later.");
+        if (isMounted) {
+          setError("Failed to load audio files. Please try again later.");
 
-        // Fallback to a static list for demo purposes
-        const fallbackFiles = ["demo1.mp3", "demo2.mp3"];
-        setAudioFiles(fallbackFiles);
+          // Fallback to a static list for demo purposes
+          const fallbackFiles = ["demo1.mp3", "demo2.mp3"];
+          setAudioFiles(fallbackFiles);
 
-        if (fallbackFiles.length > 0 && !selectedFile) {
-          onSelect(`/audio/${fallbackFiles[0]}`);
+          if (fallbackFiles.length > 0 && !selectedFile) {
+            onSelect(`/audio/${fallbackFiles[0]}`);
+          }
         }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchAudioFiles();
-  }, [onSelect, selectedFile]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array since we only want to fetch once on mount
 
   if (loading) {
     return (

@@ -197,7 +197,7 @@ interface SceneContextType {
   setColorPalette: (paletteId: string) => void;
   autoRotateColors: boolean;
   setAutoRotateColors: (value: boolean) => void;
-  transitionProgress: number; // Add transition progress
+  transitionProgress: number;
   toggleAutoRotate: () => void;
   environment: string | null;
   setEnvironment: (env: string | null) => void;
@@ -211,6 +211,12 @@ interface SceneContextType {
   togglePerformanceStats: () => void;
   stats: StatsData;
   setStats: (stats: StatsData) => void;
+  showGrain: boolean;
+  setShowGrain: (value: boolean) => void;
+  grainIntensity: number;
+  setGrainIntensity: (value: number) => void;
+  grainBlendMode: string;
+  setGrainBlendMode: (value: string) => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -236,6 +242,12 @@ const SceneContext = createContext<SceneContextType>({
   togglePerformanceStats: () => {},
   stats: { fps: 0, geometries: 0, textures: 0 },
   setStats: () => {},
+  showGrain: false,
+  setShowGrain: () => {},
+  grainIntensity: 0.5,
+  setGrainIntensity: () => {},
+  grainBlendMode: "overlay",
+  setGrainBlendMode: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -514,6 +526,128 @@ const ColorTintedEnvironment = () => {
   );
 };
 
+// Add new component for grain effect
+const GrainEffect = () => {
+  const { showGrain, grainIntensity, grainBlendMode } = useSceneContext();
+  const { gl } = useThree();
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const textureRef = useRef<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    if (!textureRef.current) {
+      // Create a canvas for the grain texture
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext("2d");
+
+      if (ctx) {
+        const imageData = ctx.createImageData(256, 256);
+        const data = imageData.data;
+
+        // Generate random noise
+        for (let i = 0; i < data.length; i += 4) {
+          const value = Math.random() * 255;
+          data[i] = value; // R
+          data[i + 1] = value; // G
+          data[i + 2] = value; // B
+          data[i + 3] = 255; // A
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        textureRef.current = new THREE.CanvasTexture(canvas);
+        textureRef.current.wrapS = THREE.RepeatWrapping;
+        textureRef.current.wrapT = THREE.RepeatWrapping;
+        textureRef.current.repeat.set(4, 4);
+      }
+    }
+
+    // Create shader material
+    if (!materialRef.current) {
+      materialRef.current = new THREE.ShaderMaterial({
+        uniforms: {
+          tDiffuse: { value: null },
+          grainTexture: { value: textureRef.current },
+          intensity: { value: grainIntensity },
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform sampler2D grainTexture;
+          uniform float intensity;
+          varying vec2 vUv;
+          
+          void main() {
+            vec4 color = texture2D(tDiffuse, vUv);
+            vec4 grain = texture2D(grainTexture, vUv);
+            
+            // Apply different blend modes
+            vec4 result;
+            if (intensity <= 0.0) {
+              result = color;
+            } else {
+              float grainValue = grain.r * intensity;
+              
+              if (grainBlendMode == 'overlay') {
+                result = vec4(
+                  color.rgb * (1.0 - grainValue) + 
+                  mix(vec3(0.5), color.rgb, step(0.5, color.rgb)) * grainValue,
+                  color.a
+                );
+              } else if (grainBlendMode == 'multiply') {
+                result = vec4(color.rgb * (1.0 - grainValue), color.a);
+              } else if (grainBlendMode == 'screen') {
+                result = vec4(1.0 - (1.0 - color.rgb) * (1.0 - grainValue), color.a);
+              } else {
+                result = color;
+              }
+            }
+            
+            gl_FragColor = result;
+          }
+        `,
+        transparent: true,
+      });
+    }
+
+    return () => {
+      if (materialRef.current) {
+        materialRef.current.dispose();
+      }
+      if (textureRef.current) {
+        textureRef.current.dispose();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.intensity.value = grainIntensity;
+    }
+  }, [grainIntensity]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.visible = showGrain;
+    }
+  }, [showGrain]);
+
+  if (!showGrain) return null;
+
+  return (
+    <mesh renderOrder={-1000} scale={[100, 100, 100]}>
+      <planeGeometry args={[2, 2]} />
+      <primitive object={materialRef.current!} />
+    </mesh>
+  );
+};
+
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   // Use SettingsContext for state management
   const { settings, updateSettings, getColorPalette } = useSettings();
@@ -528,6 +662,9 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     geometries: 0,
     textures: 0,
   });
+  const [showGrain, setShowGrain] = useState(false);
+  const [grainIntensity, setGrainIntensity] = useState(0.5);
+  const [grainBlendMode, setGrainBlendMode] = useState("overlay");
 
   // Convert settings to local state variables
   const autoRotate = settings.autoRotate;
@@ -764,6 +901,12 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     togglePerformanceStats,
     stats,
     setStats,
+    showGrain,
+    setShowGrain,
+    grainIntensity,
+    setGrainIntensity,
+    grainBlendMode,
+    setGrainBlendMode,
   };
 
   return (
@@ -860,6 +1003,9 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
 
             {/* Performance monitoring - only add the data collector */}
             {showPerformanceStats && <RendererStats />}
+
+            {/* Add GrainEffect component */}
+            <GrainEffect />
 
             <Preload all />
           </Canvas>
