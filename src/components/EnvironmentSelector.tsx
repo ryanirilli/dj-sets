@@ -215,10 +215,6 @@ const EnvironmentSelector = () => {
               onValueChange={handleTintStrengthChange}
               className="py-1"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Adjusts how much the environment is tinted to match your color
-              palette.
-            </p>
           </div>
         )}
       </div>

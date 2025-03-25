@@ -782,14 +782,14 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         ) as THREE.BufferAttribute;
 
         // More varied upward velocity
-        const upwardVelocity = avgAudioLevel / 3; // Modified from 1.5+1.0 to 1.2+1.5
+        const upwardVelocity = avgAudioLevel / 4; // Reduced from /3 to /4 for slower upward movement
 
         // Calculate outward direction - INCREASED outward movement
         const distanceFromCenter = Math.sqrt(posX * posX + posZ * posZ);
         const centerBias = Math.min(1.0, distanceFromCenter / radius);
 
         // MORE outward velocity for particles, less inward bias
-        const dirFactor = centerBias * (0.2 + Math.random() * 0.3);
+        const dirFactor = centerBias * (0.15 + Math.random() * 0.2); // Reduced from 0.2+0.3 to 0.15+0.2
         const dirX =
           posX === 0
             ? 0
@@ -801,19 +801,19 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
             : (Math.random() < 0.3 ? -Math.sign(posZ) : Math.sign(posZ)) *
               dirFactor;
 
-        const outwardFactor = 0.05 + Math.random() * 0.1; // Increased from 0.05+0.1 to 0.15+0.2
+        const outwardFactor = 0.03 + Math.random() * 0.05; // Reduced from 0.05+0.1 to 0.03+0.05
 
-        const swirling = 0.5;
+        const swirling = 0.3; // Reduced from 0.5 to 0.3 for gentler swirling
 
-        const swirlStrength = swirling * (0.3 + Math.random() * 0.1);
-        const swirlTime = currentTime * (0.2 + Math.random() * 0.1) + i * 0.01; // Using particle index instead of aOffset
+        const swirlStrength = swirling * (0.2 + Math.random() * 0.05); // Reduced from 0.3+0.1 to 0.2+0.05
+        const swirlTime = currentTime * (0.1 + Math.random() * 0.05) + i * 0.01; // Reduced time multiplier from 0.2+0.1 to 0.1+0.05
         const dirVx = Math.cos(swirlTime) * swirlStrength;
         const dirVz = Math.sin(swirlTime) * swirlStrength;
 
         // Create initial velocity vector - MORE SPREAD and directional variety
-        const vx = dirX * outwardFactor + dirVx + (Math.random() - 0.5) * 0.5;
-        const vy = upwardVelocity * (0.8 + Math.random() * 0.4); // Varied upward velocity
-        const vz = dirZ * outwardFactor + dirVz + (Math.random() - 0.5) * 0.5;
+        const vx = dirX * outwardFactor + dirVx + (Math.random() - 0.5) * 0.2; // Reduced random factor from 0.5 to 0.2
+        const vy = upwardVelocity * (0.6 + Math.random() * 0.3); // Reduced from 0.8+0.4 to 0.6+0.3
+        const vz = dirZ * outwardFactor + dirVz + (Math.random() - 0.5) * 0.2; // Reduced random factor from 0.5 to 0.2
 
         // Set both velocity and initial velocity
         velocityAttr.setXYZ(i, vx, vy, vz);

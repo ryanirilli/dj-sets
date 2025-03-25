@@ -10,9 +10,9 @@ import { Progress } from "@/components/ui/progress";
 import {
   FaPlay,
   FaPause,
-  FaBars,
   FaTimes,
   FaChevronDown,
+  FaSlidersH,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -91,11 +91,11 @@ export const Toolbar = ({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50">
+    <div className="absolute bottom-0 left-0 right-0 z-50">
       {/* Main Container */}
       <div className="relative">
         {/* Bottom Menu Bar with Progress overlay */}
-        <div className="relative flex items-center justify-between p-3 bg-background/80 backdrop-blur-md border-t border-border pt-5">
+        <div className="relative flex items-center justify-between p-3 bg-background/70 backdrop-blur-xl border-t border-border/50 pt-5">
           {/* Progress Bar - Now on top of the bottom bar */}
           <div
             className="absolute top-0 left-0 right-0 cursor-pointer"
@@ -104,12 +104,12 @@ export const Toolbar = ({
           >
             <Progress
               value={progressPercentage}
-              className="h-1 rounded-none bg-muted"
+              className="h-1 rounded-none bg-muted/50"
             />
           </div>
 
           {/* Time and Duration Display - Floating on top of the toolbar */}
-          <div className="absolute -top-8 left-0 right-0 flex justify-between text-xs text-white font-medium py-1 rounded-t-md mx-4 backdrop-blur-sm">
+          <div className="absolute -top-8 left-0 right-0 flex justify-between text-xs text-white font-medium py-1 rounded-t-md mx-4">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
@@ -138,13 +138,8 @@ export const Toolbar = ({
 
           {/* Menu Toggle Button with Sheet */}
           <div className="flex-1 flex justify-end">
-            <Button
-              onClick={() => setIsOpen(true)}
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-            >
-              <FaBars size={16} />
+            <Button onClick={() => setIsOpen(true)} variant="ghost">
+              <FaSlidersH size={16} />
             </Button>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetContent
