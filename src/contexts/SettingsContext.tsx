@@ -7,6 +7,7 @@ import {
   useCallback,
   useMemo,
   Suspense,
+  useRef,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Vector3 } from "three";
@@ -79,6 +80,7 @@ interface SettingsContextType {
   getColorPalette: () => ColorPalette;
   updateCameraPosition: (position: Vector3, target: Vector3) => void;
   toggleSectionOpen: (sectionKey: string) => void;
+  setIsCameraInteracting: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 // Create the context
@@ -281,15 +283,19 @@ function SettingsLoader({
   onSettingsLoaded: (settings: Settings) => void;
 }) {
   const searchParams = useSearchParams();
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
+    // Skip if no search params are available yet or if we've already loaded
+    if (!searchParams || hasLoadedRef.current) return;
+
     console.log(
       "[DEBUG] Initial URL search params:",
-      searchParams?.toString() || "empty"
+      searchParams.toString() || "empty"
     );
 
     // Create a proper URLSearchParams object from the search string
-    const urlSearchParams = new URLSearchParams(searchParams?.toString() || "");
+    const urlSearchParams = new URLSearchParams(searchParams.toString());
 
     // Log all parameters for debugging
     console.log("[DEBUG] URL params entries:");
@@ -303,6 +309,7 @@ function SettingsLoader({
 
     const parsedSettings = parseSettings(urlSearchParams);
     onSettingsLoaded(parsedSettings);
+    hasLoadedRef.current = true;
   }, [searchParams, onSettingsLoaded]);
 
   return null; // This component doesn't render anything
@@ -318,6 +325,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const pathname = usePathname();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
+  const [isCameraInteracting, setIsCameraInteracting] = useState(false);
 
   // Handler for when settings are loaded from URL
   const handleSettingsLoaded = useCallback((loadedSettings: Settings) => {
@@ -339,6 +347,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   // Update the URL when settings change
   useEffect(() => {
     if (!isSettingsLoaded) return; // Don't update URL until initial settings are loaded
+    if (isCameraInteracting) return; // Don't update URL while camera is being interacted with
 
     // We need to delay URL updates to avoid too many history entries
     const updateTimeout = setTimeout(() => {
@@ -350,6 +359,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       }
 
       const urlParams = params.toString();
+      const newUrl = `${pathname}?${urlParams}`;
 
       // Get current URL search params to compare
       const currentUrlParams = new URLSearchParams(
@@ -364,13 +374,13 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         );
         console.log("[DEBUG] Full URL params:", urlParams);
 
-        // Update URL without causing a navigation
-        router.replace(`${pathname}?${urlParams}`, { scroll: false });
+        // Update URL without causing a navigation or fetch
+        router.replace(newUrl, { scroll: false });
       }
-    }, 1000); // Increased debounce timeout from 500ms to 1000ms
+    }, 1000);
 
     return () => clearTimeout(updateTimeout);
-  }, [settings, pathname, router, isSettingsLoaded]);
+  }, [settings, pathname, router, isSettingsLoaded, isCameraInteracting]);
 
   // Update a single setting
   const updateSettings = useCallback(
@@ -422,6 +432,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       getColorPalette,
       updateCameraPosition,
       toggleSectionOpen,
+      setIsCameraInteracting,
     }),
     [
       settings,

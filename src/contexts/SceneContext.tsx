@@ -296,7 +296,7 @@ const RendererStats = () => {
 // Component to handle camera state persistence
 const CameraPositionManager = () => {
   const { camera, controls } = useThree();
-  const { updateCameraPosition } = useSettings();
+  const { updateCameraPosition, setIsCameraInteracting } = useSettings();
   const { settings } = useSettings();
   const lastPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const lastTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -315,10 +315,12 @@ const CameraPositionManager = () => {
     // Add event listeners for user interaction
     const startInteraction = () => {
       userInteractingRef.current = true;
+      setIsCameraInteracting(true);
     };
 
     const endInteraction = () => {
       userInteractingRef.current = true;
+      setIsCameraInteracting(true);
 
       // Set a short timeout to update camera position after user finishes interacting
       if (updateTimeoutRef.current) {
@@ -348,6 +350,7 @@ const CameraPositionManager = () => {
         }
 
         userInteractingRef.current = false;
+        setIsCameraInteracting(false);
       }, 500);
     };
 
@@ -379,7 +382,7 @@ const CameraPositionManager = () => {
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [controls, camera, updateCameraPosition]);
+  }, [controls, camera, updateCameraPosition, setIsCameraInteracting]);
 
   // Set initial camera position from URL
   useEffect(() => {
