@@ -531,32 +531,26 @@ const ColorTintedEnvironment = () => {
 
 // Add new component for grain effect
 const GrainEffect = () => {
-  const { showGrain, grainIntensity, grainBlendMode } = useSceneContext();
-  const { gl } = useThree();
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
-  const textureRef = useRef<THREE.Texture | null>(null);
+  const { showGrain, grainIntensity } = useSceneContext();
+  const materialRef = useRef<THREE.ShaderMaterial | null>(null);
+  const textureRef = useRef<THREE.CanvasTexture | null>(null);
 
   useEffect(() => {
+    // Create grain texture
     if (!textureRef.current) {
-      // Create a canvas for the grain texture
       const canvas = document.createElement("canvas");
       canvas.width = 256;
       canvas.height = 256;
       const ctx = canvas.getContext("2d");
-
       if (ctx) {
         const imageData = ctx.createImageData(256, 256);
-        const data = imageData.data;
-
-        // Generate random noise
-        for (let i = 0; i < data.length; i += 4) {
+        for (let i = 0; i < imageData.data.length; i += 4) {
           const value = Math.random() * 255;
-          data[i] = value; // R
-          data[i + 1] = value; // G
-          data[i + 2] = value; // B
-          data[i + 3] = 255; // A
+          imageData.data[i] = value;
+          imageData.data[i + 1] = value;
+          imageData.data[i + 2] = value;
+          imageData.data[i + 3] = 255;
         }
-
         ctx.putImageData(imageData, 0, 0);
         textureRef.current = new THREE.CanvasTexture(canvas);
         textureRef.current.wrapS = THREE.RepeatWrapping;
@@ -567,7 +561,7 @@ const GrainEffect = () => {
 
     // Create shader material
     if (!materialRef.current) {
-      materialRef.current = new THREE.ShaderMaterial({
+      const material = new THREE.ShaderMaterial({
         uniforms: {
           tDiffuse: { value: null },
           grainTexture: { value: textureRef.current },
@@ -585,38 +579,14 @@ const GrainEffect = () => {
           uniform sampler2D grainTexture;
           uniform float intensity;
           varying vec2 vUv;
-          
           void main() {
             vec4 color = texture2D(tDiffuse, vUv);
             vec4 grain = texture2D(grainTexture, vUv);
-            
-            // Apply different blend modes
-            vec4 result;
-            if (intensity <= 0.0) {
-              result = color;
-            } else {
-              float grainValue = grain.r * intensity;
-              
-              if (grainBlendMode == 'overlay') {
-                result = vec4(
-                  color.rgb * (1.0 - grainValue) + 
-                  mix(vec3(0.5), color.rgb, step(0.5, color.rgb)) * grainValue,
-                  color.a
-                );
-              } else if (grainBlendMode == 'multiply') {
-                result = vec4(color.rgb * (1.0 - grainValue), color.a);
-              } else if (grainBlendMode == 'screen') {
-                result = vec4(1.0 - (1.0 - color.rgb) * (1.0 - grainValue), color.a);
-              } else {
-                result = color;
-              }
-            }
-            
-            gl_FragColor = result;
+            gl_FragColor = color + (grain - 0.5) * intensity;
           }
         `,
-        transparent: true,
       });
+      materialRef.current = material;
     }
 
     return () => {
@@ -627,7 +597,7 @@ const GrainEffect = () => {
         textureRef.current.dispose();
       }
     };
-  }, []);
+  }, [grainIntensity]);
 
   useEffect(() => {
     if (materialRef.current) {

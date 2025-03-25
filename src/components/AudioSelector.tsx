@@ -61,7 +61,7 @@ const AudioSelector = ({ onSelect, selectedFile }: AudioSelectorProps) => {
     return () => {
       isMounted = false;
     };
-  }, []); // Empty dependency array since we only want to fetch once on mount
+  }, [onSelect, selectedFile]);
 
   if (loading) {
     return (
