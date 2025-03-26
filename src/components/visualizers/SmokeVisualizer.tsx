@@ -1,5 +1,5 @@
 import { useRef, useMemo, useEffect, useCallback } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useAudio } from "@/contexts/AudioContext";
 import { VisualizerProps } from "@/types/visualizers";
@@ -346,6 +346,10 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   const { isPlaying, onBeat, currentAudioFile, avgAudioLevel } = useAudio();
   const pointsRef = useRef<THREE.Points>(null);
   const activeParticlesRef = useRef(0);
+  const requestIdRef = useRef<number>();
+
+  // Get gl context and canvas from R3F
+  const { gl } = useThree();
 
   // Use refs instead of state for these values to reduce re-renders
   const lastAudioAmplitudeRef = useRef(0);
@@ -363,6 +367,72 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     }),
     []
   );
+
+  // Function to initialize/reinitialize WebGL resources
+  const initializeResources = useCallback(() => {
+    if (!pointsRef.current) return;
+
+    const geometry = pointsRef.current.geometry;
+    const material = pointsRef.current.material as THREE.ShaderMaterial;
+
+    // Reset uniforms
+    material.uniforms = uniforms;
+    material.needsUpdate = true;
+
+    // Reset attributes
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const activeAttr = geometry.getAttribute(
+        "aActive"
+      ) as THREE.BufferAttribute;
+      activeAttr.setX(i, 0);
+    }
+
+    geometry.attributes.aActive.needsUpdate = true;
+    activeParticlesRef.current = 0;
+  }, [uniforms]);
+
+  // Handle context loss
+  const handleContextLost = useCallback((event: Event) => {
+    event.preventDefault();
+    console.log("WebGL context lost");
+
+    // Stop animation loop
+    if (requestIdRef.current !== undefined) {
+      cancelAnimationFrame(requestIdRef.current);
+      requestIdRef.current = undefined;
+    }
+  }, []);
+
+  // Handle context restoration
+  const handleContextRestored = useCallback(() => {
+    console.log("WebGL context restored");
+    initializeResources();
+  }, [initializeResources]);
+
+  // Add context loss event listeners
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    canvas.addEventListener(
+      "webglcontextlost",
+      handleContextLost as EventListener
+    );
+    canvas.addEventListener(
+      "webglcontextrestored",
+      handleContextRestored as EventListener
+    );
+
+    return () => {
+      canvas.removeEventListener(
+        "webglcontextlost",
+        handleContextLost as EventListener
+      );
+      canvas.removeEventListener(
+        "webglcontextrestored",
+        handleContextRestored as EventListener
+      );
+    };
+  }, [gl, handleContextLost, handleContextRestored]);
 
   // Create particles with initial attributes
   const { positions, scales, offsets, velocities } = useMemo(() => {
@@ -838,6 +908,9 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     // Only proceed if audio is playing
     if (!isPlaying) return;
 
+    // Store the animation frame ID
+    requestIdRef.current = requestAnimationFrame(() => {});
+
     const audioAmplitude = calculateAudioAmplitude(audioData);
     lastAudioAmplitudeRef.current = audioAmplitude;
 
@@ -911,15 +984,18 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     }
   });
 
-  // Add cleanup for resources when component unmounts
+  // Update cleanup effect
   useEffect(() => {
     return () => {
+      // Cancel any pending animation frame
+      if (requestIdRef.current !== undefined) {
+        cancelAnimationFrame(requestIdRef.current);
+      }
+
       // Force garbage collection
       if (typeof window !== "undefined") {
         THREE.Cache.clear();
       }
-
-      // Let the ResourceCleaner component handle the detailed cleanup
     };
   }, []);
 
