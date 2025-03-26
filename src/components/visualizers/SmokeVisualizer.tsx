@@ -5,7 +5,9 @@ import { useAudio } from "@/contexts/AudioContext";
 import { VisualizerProps } from "@/types/visualizers";
 import { useColorPalette } from "@/hooks/useColorPalette";
 
-const PARTICLE_COUNT = 500;
+// Reduce particle count for mobile devices
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const PARTICLE_COUNT = isMobile ? 200 : 500;
 const AVG_AUDIO_DATA_THRESHOLD = 25;
 const PARTICLE_LIFETIME = 0.5;
 
@@ -13,7 +15,6 @@ const PARTICLE_LIFETIME = 0.5;
 const ACTIVE_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const BURST_TIME_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const COLOR_ARRAY = new Float32Array(PARTICLE_COUNT * 3).fill(0);
-const ROTATION_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const LIFETIME_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const FADE_START_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const FADE_LENGTH_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
@@ -21,105 +22,49 @@ const TURBULENCE_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const BAND_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const INITIAL_VELOCITY_ARRAY = new Float32Array(PARTICLE_COUNT * 3).fill(0);
 
-// Vertex shader for smoke particles
+// Simplified fragment shader - just solid color with alpha
+const fragmentShader = `
+  varying vec3 vColor;
+  varying float vAlpha;
+  
+  void main() {
+    // Simple circular particle
+    vec2 coord = gl_PointCoord - 0.5;
+    float r = length(coord);
+    
+    // Sharp falloff for better performance
+    float alpha = step(r, 0.5) * vAlpha;
+    
+    // Simple solid color without extra effects
+    vec3 color = vColor;
+    
+    // Discard transparent pixels
+    if (alpha < 0.01) discard;
+    
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+// Simplified vertex shader - remove rotation and complex movement
 const vertexShader = `
   uniform float uTime;
   uniform float uSize;
-  uniform vec3 uAudioData; // Audio data [bass, mid, high]
+  uniform vec3 uAudioData;
   
   attribute float aScale;
   attribute float aOffset;
   attribute float aActive;
   attribute float aBurstTime;
   attribute vec3 aColor;
-  attribute float aRotation;
   attribute float aLifetime;
   attribute float aFadeStart;
   attribute float aFadeLength;
-  attribute float aTurbulence;
-  attribute float aBand;
   attribute vec3 aVelocity;
-  attribute vec3 aInitialVelocity;
   
   varying vec3 vColor;
   varying float vAlpha;
-  varying float vRotation;
-  
-  // Simplex noise function for more natural movement
-  // Simplified 3D noise function
-  vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-  vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-  vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-  vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-  
-  float snoise(vec3 v) {
-    const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-    
-    // First corner
-    vec3 i  = floor(v + dot(v, C.yyy));
-    vec3 x0 = v - i + dot(i, C.xxx);
-    
-    // Other corners
-    vec3 g = step(x0.yzx, x0.xyz);
-    vec3 l = 1.0 - g;
-    vec3 i1 = min(g.xyz, l.zxy);
-    vec3 i2 = max(g.xyz, l.zxy);
-    
-    vec3 x1 = x0 - i1 + C.xxx;
-    vec3 x2 = x0 - i2 + C.yyy;
-    vec3 x3 = x0 - D.yyy;
-    
-    // Permutations
-    i = mod289(i);
-    vec4 p = permute(permute(permute(
-              i.z + vec4(0.0, i1.z, i2.z, 1.0))
-            + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-            + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-            
-    // Gradients
-    float n_ = 0.142857142857;
-    vec3 ns = n_ * D.wyz - D.xzx;
-    
-    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-    
-    vec4 x_ = floor(j * ns.z);
-    vec4 y_ = floor(j - 7.0 * x_);
-    
-    vec4 x = x_ *ns.x + ns.yyyy;
-    vec4 y = y_ *ns.x + ns.yyyy;
-    vec4 h = 1.0 - abs(x) - abs(y);
-    
-    vec4 b0 = vec4(x.xy, y.xy);
-    vec4 b1 = vec4(x.zw, y.zw);
-    
-    vec4 s0 = floor(b0)*2.0 + 1.0;
-    vec4 s1 = floor(b1)*2.0 + 1.0;
-    vec4 sh = -step(h, vec4(0.0));
-    
-    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
-    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-    
-    vec3 p0 = vec3(a0.xy, h.x);
-    vec3 p1 = vec3(a0.zw, h.y);
-    vec3 p2 = vec3(a1.xy, h.z);
-    vec3 p3 = vec3(a1.zw, h.w);
-    
-    // Normalise gradients
-    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
-    p0 *= norm.x;
-    p1 *= norm.y;
-    p2 *= norm.z;
-    p3 *= norm.w;
-    
-    // Mix final noise value
-    vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-    m = m * m;
-    return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
-  }
   
   void main() {
-    // If particle is inactive, make it invisible
     if (aActive < 0.5) {
       gl_Position = vec4(0.0);
       gl_PointSize = 0.0;
@@ -127,202 +72,39 @@ const vertexShader = `
       return;
     }
     
-    // Calculate particle age based on current time and burst time
     float age = uTime - aBurstTime;
-    float lifetime = aLifetime;
-    float normalizedAge = clamp(age / lifetime, 0.0, 1.0);
+    float normalizedAge = clamp(age / aLifetime, 0.0, 1.0);
     
-    // Get the appropriate audio data based on the particle's band
-    // Note: We no longer use this for movement, only for initial properties
-    float bandValue = 0.0;
-    if (aBand < 0.5) {
-      bandValue = uAudioData.x; // Low frequency (bass)
-    } else if (aBand < 1.5) {
-      bandValue = uAudioData.y; // Mid frequency
-    } else {
-      bandValue = uAudioData.z; // High frequency
-    }
-    
-    // Start with the original position
+    // Simplified position calculation
     vec3 pos = position;
     
-    // Calculate noise for horizontal movement
-    float noiseScale = 1.2;
-    float noiseTime = uTime * 0.15;
+    // Basic upward movement with slight spread
+    float upwardVelocity = aVelocity.y * 0.5;
+    float horizontalSpread = min(1.0, normalizedAge * 2.0);
     
-    // Add particle-specific variation
-    vec3 noisePos = vec3(
-      position.x * noiseScale + noiseTime + aOffset * 10.0,
-      position.y * noiseScale * 0.5 + noiseTime + aOffset * 5.0,
-      position.z * noiseScale + noiseTime * 0.7 + aOffset * 8.0
-    );
+    pos.y += upwardVelocity * age;
+    pos.x += aVelocity.x * age * horizontalSpread;
+    pos.z += aVelocity.z * age * horizontalSpread;
     
-    // Get noise values
-    float noiseX = snoise(noisePos);
-    float noiseZ = snoise(noisePos + vec3(12.34, 56.78, 90.12));
+    // Add gravity
+    pos.y -= normalizedAge * normalizedAge * 0.5;
     
-    // Secondary noise for more complex movement
-    float noiseX2 = snoise(noisePos * 2.0 + vec3(45.67, 89.01, 23.45));
-    float noiseZ2 = snoise(noisePos * 2.0 + vec3(67.89, 12.34, 56.78));
-    
-    // Calculate upward movement - enhanced shooting motion in early life
-    // 1. Base upward velocity from initial velocity - REDUCED for more horizontal spread
-    float baseUpwardVelocity = aVelocity.y * 0.7; // Reduced from 1.0 to 0.7 to allow more horizontal movement
-    
-    // 2. Age-based acceleration - particles shoot up quickly then slow down
-    // Enhanced early acceleration for more dramatic shooting effect
-    float ageAcceleration;
-    if (normalizedAge < 0.15) { // Reduced from 0.2 to 0.15 for faster initial acceleration
-      // Strong initial acceleration for shooting effect
-      ageAcceleration = 0.85 - normalizedAge * 0.5; // Reduced from 1.0 to 0.85
-    } else {
-      // Normal deceleration after initial burst
-      ageAcceleration = 0.6 * (1.0 - (normalizedAge - 0.15) * 0.5); // Reduced from 0.8 to 0.6
-    }
-    
-    // 3. Early-age boost for initial shooting effect (not audio reactive)
-    float earlyAgeBoost = max(0.0, 0.3 - normalizedAge) * 1.2; // Reduced from 1.5 to 1.2
-    
-    // Combine for total upward movement - enhanced shooting effect
-    float totalUpwardMovement = (baseUpwardVelocity * ageAcceleration + earlyAgeBoost) * age;
-    
-    // SCALE DOWN the total upward movement to keep particles in view
-    totalUpwardMovement *= 0.5; // Further reduced from 0.6 to 0.5
-    
-    // Apply upward movement from initial velocity and calculated movement
-    pos.y += totalUpwardMovement;
-    
-    // Add a height limit to keep particles in view
-    pos.y = min(pos.y, 3.0); // Limit maximum height to 3.0 units
-    
-    // Apply horizontal movement from initial velocity - INCREASED for more spread
-    float horizontalFactor = min(1.0, normalizedAge * 3.0); // Increased from 5.0 to 3.0 for earlier horizontal movement
-    pos.x += aVelocity.x * age * horizontalFactor * 1.5; // Increased from 0.7 to 1.5 for more spread
-    pos.z += aVelocity.z * age * horizontalFactor * 1.5; // Increased from 0.7 to 1.5 for more spread
-    
-    // Apply natural horizontal movement from noise - INCREASED for more dynamic floating
-    float turbulenceStrength = aTurbulence * 1.2 * horizontalFactor; // Increased from 0.5 to 1.2
-    
-    // Apply noise-based movement for natural floating - INCREASED for more dynamic motion
-    pos.x += noiseX * turbulenceStrength * age * 1.0; // Increased from 0.5 to 1.0
-    pos.z += noiseZ * turbulenceStrength * age * 1.0; // Increased from 0.5 to 1.0
-    
-    // Apply secondary noise for more complex movement - INCREASED for more complexity
-    pos.x += noiseX2 * turbulenceStrength * age * 0.6; // Increased from 0.25 to 0.6
-    pos.z += noiseZ2 * turbulenceStrength * age * 0.6; // Increased from 0.25 to 0.6
-    
-    // Add enhanced sinusoidal movement for more floating effect - INCREASED amplitude
-    pos.x += sin(age * (0.4 + aOffset * 0.2)) * 0.15 * age * horizontalFactor; // Increased from 0.06 to 0.15 and changed frequency
-    pos.z += cos(age * (0.3 + aOffset * 0.15)) * 0.15 * age * horizontalFactor; // Increased from 0.06 to 0.15 and changed frequency
-    
-    // Add NEW figure-8 pattern movement for more interesting floating
-    float figure8Strength = 0.08 * age * horizontalFactor;
-    pos.x += sin(age * (0.2 + aOffset * 0.05)) * cos(age * (0.3 + aOffset * 0.1)) * figure8Strength;
-    pos.z += cos(age * (0.2 + aOffset * 0.05)) * sin(age * (0.3 + aOffset * 0.1)) * figure8Strength;
-    
-    // Add NEW vortex swirl effect for more interesting particle behavior
-    float swirl = smoothstep(0.0, 0.3, normalizedAge) * (1.0 - smoothstep(0.7, 1.0, normalizedAge));
-    float swirlStrength = 0.3 * swirl;
-    float swirlRadius = length(vec2(pos.x, pos.z));
-    float swirlAngle = atan(pos.z, pos.x) + (0.2 + aOffset * 0.1) * age;
-    vec2 swirlVector = vec2(cos(swirlAngle), sin(swirlAngle)) * swirlStrength * swirlRadius;
-    pos.x += swirlVector.x * age;
-    pos.z += swirlVector.y * age;
-    
-    // Add NEW gravity effect to make particles float down after peak
-    float gravityEffect = max(0.0, normalizedAge - 0.6) * 0.04;
-    pos.y -= gravityEffect * age * age;
-    
-    // Individualized fade-out for each particle
-    float fadeStart = aFadeStart;
-    float fadeLength = aFadeLength;
-    
+    // Simple fade out
     float fadeAlpha = 1.0;
-    if (normalizedAge > fadeStart) {
-      float fadeProgress = (normalizedAge - fadeStart) / fadeLength;
-      fadeAlpha = 1.0 - pow(min(fadeProgress, 1.0), 2.0);
+    if (normalizedAge > aFadeStart) {
+      fadeAlpha = 1.0 - (normalizedAge - aFadeStart) / aFadeLength;
     }
     vAlpha = max(0.0, fadeAlpha);
     
-    float endFade = smoothstep(1.0, 0.9, normalizedAge);
-    vAlpha *= endFade;
-    
-    // Calculate position
+    // Calculate final position
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    
-    // Size based on scale and distance - enhanced growth for shooting effect
-    float sizeModifier;
-    if (normalizedAge < 0.1) {
-      // Start smaller for shooting effect
-      sizeModifier = 0.7 + normalizedAge * 5.0; // Quick initial growth
-    } else {
-      // Normal growth after initial shooting
-      sizeModifier = 1.2 + pow((normalizedAge - 0.1) * 1.1, 0.3) * 1.5; // Reduced from 2.0 to 1.5
-    }
-    
-    // No audio-reactive size boost, just use the initial scale with enhanced modifier
-    float size = uSize * aScale * sizeModifier * (1.0 / -mvPosition.z);
-    
-    gl_PointSize = size;
     gl_Position = projectionMatrix * mvPosition;
     
-    // Pass the particle color to fragment shader
+    // Simpler size calculation
+    gl_PointSize = uSize * aScale * (1.0 / -mvPosition.z);
+    
+    // Pass color directly
     vColor = aColor;
-    
-    // Pass rotation to fragment shader - faster rotation for shooting effect, then slowing
-    float rotationSpeed = 0.2 + aOffset * 0.3;
-    if (normalizedAge < 0.2) {
-      rotationSpeed *= 1.5; // Faster initial rotation for shooting effect
-    }
-    vRotation = aRotation + age * rotationSpeed;
-  }
-`;
-
-// Update fragment shader to generate texture procedurally
-const fragmentShader = `
-  varying vec3 vColor;
-  varying float vAlpha;
-  varying float vRotation;
-  
-  void main() {
-    // Calculate rotation
-    float c = cos(vRotation);
-    float s = sin(vRotation);
-    
-    // Get point coordinates relative to center (from -0.5 to 0.5)
-    vec2 centeredCoord = gl_PointCoord - 0.5;
-    
-    // Rotate texture coordinates
-    vec2 rotatedUV = vec2(
-      c * centeredCoord.x + s * centeredCoord.y + 0.5,
-      c * centeredCoord.y - s * centeredCoord.x + 0.5
-    );
-    
-    // Create a radial gradient for the particle
-    float dist = length(rotatedUV - 0.5);
-    float radialGradient = 1.0 - smoothstep(0.0, 0.5, dist);
-    
-    // Add some noise to break up the perfect circle
-    float noise = fract(sin(dot(rotatedUV, vec2(12.9898, 78.233))) * 43758.5453);
-    radialGradient *= (0.9 + noise * 0.1);
-    
-    // Apply soft edges
-    float alpha = radialGradient * radialGradient * vAlpha;
-    
-    // Apply color with enhanced brightness
-    vec3 color = vColor * (1.2 + radialGradient * 0.3);
-    
-    // Add slight color shift for more vibrant appearance
-    color += vec3(0.05, 0.05, 0.05);
-    
-    // Enhance contrast
-    color = pow(color, vec3(0.9));
-    
-    // Discard very transparent pixels
-    if (alpha < 0.01) discard;
-    
-    // Output color with alpha
-    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -368,6 +150,30 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     []
   );
 
+  // Create particle attributes
+  const particleAttributes = useMemo(() => {
+    const positions = new Float32Array(PARTICLE_COUNT * 3);
+    const scales = new Float32Array(PARTICLE_COUNT);
+    const offsets = new Float32Array(PARTICLE_COUNT);
+    const velocities = new Float32Array(PARTICLE_COUNT * 3);
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      positions[i * 3] = 0;
+      positions[i * 3 + 1] = 0;
+      positions[i * 3 + 2] = 0;
+
+      // Smaller particles for better performance
+      scales[i] = Math.random() * 0.3 + 0.2;
+      offsets[i] = Math.random() * 5;
+
+      velocities[i * 3] = 0;
+      velocities[i * 3 + 1] = 0;
+      velocities[i * 3 + 2] = 0;
+    }
+
+    return { positions, scales, offsets, velocities };
+  }, []);
+
   // Function to initialize/reinitialize WebGL resources
   const initializeResources = useCallback(() => {
     if (!pointsRef.current) return;
@@ -375,21 +181,62 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     const geometry = pointsRef.current.geometry;
     const material = pointsRef.current.material as THREE.ShaderMaterial;
 
-    // Reset uniforms
-    material.uniforms = uniforms;
-    material.needsUpdate = true;
+    try {
+      // Reset uniforms
+      material.uniforms = uniforms;
+      material.needsUpdate = true;
 
-    // Reset attributes
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      // Ensure all attributes are properly initialized
+      const attributes = {
+        position: particleAttributes.positions,
+        aScale: particleAttributes.scales,
+        aOffset: particleAttributes.offsets,
+        aVelocity: particleAttributes.velocities,
+        aInitialVelocity: INITIAL_VELOCITY_ARRAY,
+        aActive: ACTIVE_ARRAY,
+        aBurstTime: BURST_TIME_ARRAY,
+        aColor: COLOR_ARRAY,
+        aLifetime: LIFETIME_ARRAY,
+        aFadeStart: FADE_START_ARRAY,
+        aFadeLength: FADE_LENGTH_ARRAY,
+        aTurbulence: TURBULENCE_ARRAY,
+        aBand: BAND_ARRAY,
+      };
+
+      // Recreate all attributes
+      Object.entries(attributes).forEach(([name, array]) => {
+        const itemSize =
+          name === "position" ||
+          name === "aVelocity" ||
+          name === "aInitialVelocity" ||
+          name === "aColor"
+            ? 3
+            : 1;
+
+        const attribute = new THREE.Float32BufferAttribute(array, itemSize);
+        geometry.setAttribute(name, attribute);
+      });
+
+      // Reset all particles to inactive state
       const activeAttr = geometry.getAttribute(
         "aActive"
       ) as THREE.BufferAttribute;
-      activeAttr.setX(i, 0);
-    }
+      if (activeAttr) {
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          activeAttr.setX(i, 0);
+        }
+        activeAttr.needsUpdate = true;
+      }
 
-    geometry.attributes.aActive.needsUpdate = true;
-    activeParticlesRef.current = 0;
-  }, [uniforms]);
+      // Reset particle count
+      activeParticlesRef.current = 0;
+
+      // Force geometry update
+      geometry.computeBoundingSphere();
+    } catch (error) {
+      console.error("Error reinitializing WebGL resources:", error);
+    }
+  }, [uniforms, particleAttributes]);
 
   // Handle context loss
   const handleContextLost = useCallback((event: Event) => {
@@ -401,12 +248,19 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       cancelAnimationFrame(requestIdRef.current);
       requestIdRef.current = undefined;
     }
+
+    // Clear active particle count
+    activeParticlesRef.current = 0;
   }, []);
 
-  // Handle context restoration
+  // Handle context restoration with retry logic
   const handleContextRestored = useCallback(() => {
     console.log("WebGL context restored");
-    initializeResources();
+
+    // Add a small delay to ensure the context is fully restored
+    setTimeout(() => {
+      initializeResources();
+    }, 100);
   }, [initializeResources]);
 
   // Add context loss event listeners
@@ -433,35 +287,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       );
     };
   }, [gl, handleContextLost, handleContextRestored]);
-
-  // Create particles with initial attributes
-  const { positions, scales, offsets, velocities } = useMemo(() => {
-    const positions = new Float32Array(PARTICLE_COUNT * 3);
-    const scales = new Float32Array(PARTICLE_COUNT);
-    const offsets = new Float32Array(PARTICLE_COUNT);
-    const velocities = new Float32Array(PARTICLE_COUNT * 3);
-
-    // Initialize all particles
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      // Initial positions - all at y=0 for emission from plane
-      positions[i * 3] = 0; // x
-      positions[i * 3 + 1] = 0; // y (at the plane level)
-      positions[i * 3 + 2] = 0; // z
-
-      // Random scale for each particle - smaller for more natural look
-      scales[i] = Math.random() * 0.4 + 0.2; // Reduced from 0.5+0.3 to 0.4+0.2
-
-      // Random offset for staggered animation
-      offsets[i] = Math.random() * 5;
-
-      // Initial velocity vector (mostly upward)
-      velocities[i * 3] = 0; // x
-      velocities[i * 3 + 1] = 0; // y (upward)
-      velocities[i * 3 + 2] = 0; // z
-    }
-
-    return { positions, scales, offsets, velocities };
-  }, []);
 
   // Reset state when audio track changes
   useEffect(() => {
@@ -684,211 +509,197 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     currentTime: number,
     frequencyBands: number[]
   ) => {
-    if (!pointsRef.current) return;
+    if (!pointsRef.current?.geometry) return;
 
     const geometry = pointsRef.current.geometry;
-    const activeAttr = geometry.getAttribute(
-      "aActive"
-    ) as THREE.BufferAttribute;
-    const burstTimeAttr = geometry.getAttribute(
-      "aBurstTime"
-    ) as THREE.BufferAttribute;
-    const colorAttr = geometry.getAttribute("aColor") as THREE.BufferAttribute;
-    const rotationAttr = geometry.getAttribute(
-      "aRotation"
-    ) as THREE.BufferAttribute;
-    const lifetimeAttr = geometry.getAttribute(
-      "aLifetime"
-    ) as THREE.BufferAttribute;
-    const fadeStartAttr = geometry.getAttribute(
-      "aFadeStart"
-    ) as THREE.BufferAttribute;
-    const fadeLengthAttr = geometry.getAttribute(
-      "aFadeLength"
-    ) as THREE.BufferAttribute;
-    const turbulenceAttr = geometry.getAttribute(
-      "aTurbulence"
-    ) as THREE.BufferAttribute;
-    const bandAttr = geometry.getAttribute("aBand") as THREE.BufferAttribute;
-    const initialVelocityAttr = geometry.getAttribute(
-      "aInitialVelocity"
-    ) as THREE.BufferAttribute;
+
+    // Get all required attributes with safety checks
+    const attributes = {
+      active: geometry.getAttribute("aActive") as THREE.BufferAttribute | null,
+      burstTime: geometry.getAttribute(
+        "aBurstTime"
+      ) as THREE.BufferAttribute | null,
+      color: geometry.getAttribute("aColor") as THREE.BufferAttribute | null,
+      rotation: geometry.getAttribute(
+        "aRotation"
+      ) as THREE.BufferAttribute | null,
+      lifetime: geometry.getAttribute(
+        "aLifetime"
+      ) as THREE.BufferAttribute | null,
+      fadeStart: geometry.getAttribute(
+        "aFadeStart"
+      ) as THREE.BufferAttribute | null,
+      fadeLength: geometry.getAttribute(
+        "aFadeLength"
+      ) as THREE.BufferAttribute | null,
+      turbulence: geometry.getAttribute(
+        "aTurbulence"
+      ) as THREE.BufferAttribute | null,
+      band: geometry.getAttribute("aBand") as THREE.BufferAttribute | null,
+      initialVelocity: geometry.getAttribute(
+        "aInitialVelocity"
+      ) as THREE.BufferAttribute | null,
+      position: geometry.getAttribute(
+        "position"
+      ) as THREE.BufferAttribute | null,
+      velocity: geometry.getAttribute(
+        "aVelocity"
+      ) as THREE.BufferAttribute | null,
+    };
+
+    // Check if all required attributes exist
+    if (!Object.values(attributes).every((attr) => attr !== null)) {
+      console.warn("Some required attributes are missing");
+      return;
+    }
 
     let particlesActivated = 0;
     for (let i = 0; i < PARTICLE_COUNT && particlesActivated < count; i++) {
-      if (activeAttr.getX(i) < 0.5) {
-        // Activate this particle
-        activeAttr.setX(i, 1.0);
-        burstTimeAttr.setX(i, currentTime);
+      if (attributes.active!.getX(i) < 0.5) {
+        try {
+          // Activate this particle
+          attributes.active!.setX(i, 1.0);
+          attributes.burstTime!.setX(i, currentTime);
 
-        // Set initial position - random position on the circular emission plane
-        // Generate points in a circle rather than a square
-        const radius = 4; // Circular emission radius
-        const angle = Math.random() * Math.PI * 2;
+          // Generate points in a circle rather than a square
+          const radius = 4; // Circular emission radius
+          const angle = Math.random() * Math.PI * 2;
 
-        // NEW: Add multiple emission points and patterns
-        let posX, posZ;
-        const emissionPattern = Math.random();
+          // NEW: Add multiple emission points and patterns
+          let posX, posZ;
+          const emissionPattern = Math.random();
 
-        if (emissionPattern < 0.4) {
-          // Standard circular emission - use square root for radius to ensure uniform distribution
-          const pointRadius = Math.sqrt(Math.random()) * radius * 0.8;
-          posX = Math.cos(angle) * pointRadius;
-          posZ = Math.sin(angle) * pointRadius;
-        } else if (emissionPattern < 0.7) {
-          // Ring emission - particles start from outer ring
-          const ringWidth = 0.2 + Math.random() * 0.3;
-          const pointRadius = radius * (0.7 + ringWidth * Math.random());
-          posX = Math.cos(angle) * pointRadius;
-          posZ = Math.sin(angle) * pointRadius;
-        } else if (emissionPattern < 0.9) {
-          // Scattered points - creates small clusters of particles
-          const clusterCount = 5;
-          const clusterIndex = Math.floor(Math.random() * clusterCount);
-          const clusterAngle = (clusterIndex / clusterCount) * Math.PI * 2;
-          const clusterRadius = radius * 0.6;
-          const offsetRadius = Math.random() * radius * 0.4;
-          const offsetAngle = Math.random() * Math.PI * 2;
+          if (emissionPattern < 0.4) {
+            // Standard circular emission
+            const pointRadius = Math.sqrt(Math.random()) * radius * 0.8;
+            posX = Math.cos(angle) * pointRadius;
+            posZ = Math.sin(angle) * pointRadius;
+          } else if (emissionPattern < 0.7) {
+            // Ring emission
+            const ringWidth = 0.2 + Math.random() * 0.3;
+            const pointRadius = radius * (0.7 + ringWidth * Math.random());
+            posX = Math.cos(angle) * pointRadius;
+            posZ = Math.sin(angle) * pointRadius;
+          } else if (emissionPattern < 0.9) {
+            // Scattered points
+            const clusterCount = 5;
+            const clusterIndex = Math.floor(Math.random() * clusterCount);
+            const clusterAngle = (clusterIndex / clusterCount) * Math.PI * 2;
+            const clusterRadius = radius * 0.6;
+            const offsetRadius = Math.random() * radius * 0.4;
+            const offsetAngle = Math.random() * Math.PI * 2;
 
-          posX =
-            Math.cos(clusterAngle) * clusterRadius +
-            Math.cos(offsetAngle) * offsetRadius;
-          posZ =
-            Math.sin(clusterAngle) * clusterRadius +
-            Math.sin(offsetAngle) * offsetRadius;
-        } else {
-          // Center emission - more particles from center
-          const pointRadius = Math.pow(Math.random(), 2) * radius * 0.5;
-          posX = Math.cos(angle) * pointRadius;
-          posZ = Math.sin(angle) * pointRadius;
+            posX =
+              Math.cos(clusterAngle) * clusterRadius +
+              Math.cos(offsetAngle) * offsetRadius;
+            posZ =
+              Math.sin(clusterAngle) * clusterRadius +
+              Math.sin(offsetAngle) * offsetRadius;
+          } else {
+            // Center emission
+            const pointRadius = Math.pow(Math.random(), 2) * radius * 0.5;
+            posX = Math.cos(angle) * pointRadius;
+            posZ = Math.sin(angle) * pointRadius;
+          }
+
+          // Position exactly at the plane level (y = 0)
+          const posY = 0;
+
+          // Set position with safety check
+          attributes.position!.setXYZ(i, posX, posY, posZ);
+
+          // Calculate velocities
+          const upwardVelocity = avgAudioLevel / 8;
+          const distanceFromCenter = Math.sqrt(posX * posX + posZ * posZ);
+          const centerBias = Math.min(1.0, distanceFromCenter / radius);
+          const dirFactor = centerBias * (0.15 + Math.random() * 0.2);
+          const dirX =
+            posX === 0
+              ? 0
+              : (Math.random() < 0.3 ? -Math.sign(posX) : Math.sign(posX)) *
+                dirFactor;
+          const dirZ =
+            posZ === 0
+              ? 0
+              : (Math.random() < 0.3 ? -Math.sign(posZ) : Math.sign(posZ)) *
+                dirFactor;
+          const outwardFactor = 0.03 + Math.random() * 0.05;
+          const swirling = 0.3;
+          const swirlStrength = swirling * (0.2 + Math.random() * 0.05);
+          const swirlTime =
+            currentTime * (0.1 + Math.random() * 0.05) + i * 0.01;
+          const dirVx = Math.cos(swirlTime) * swirlStrength;
+          const dirVz = Math.sin(swirlTime) * swirlStrength;
+
+          const vx = dirX * outwardFactor + dirVx + (Math.random() - 0.5) * 0.2;
+          const vy = upwardVelocity * (0.6 + Math.random() * 0.3);
+          const vz = dirZ * outwardFactor + dirVz + (Math.random() - 0.5) * 0.2;
+
+          // Set velocities with safety checks
+          attributes.velocity!.setXYZ(i, vx, vy, vz);
+          attributes.initialVelocity!.setXYZ(i, vx, vy, vz);
+
+          // Set color
+          const bandType = ["low", "mid", "high"][
+            Math.floor(Math.random() * 3)
+          ] as "low" | "mid" | "high";
+          let colorBrightness = 2.0 + Math.random() * 0.4;
+          let colorVariation = 0;
+
+          if (emissionPattern < 0.4) {
+            colorBrightness = 2.0 + Math.random() * 0.4;
+          } else if (emissionPattern < 0.7) {
+            colorBrightness = 2.3 + Math.random() * 0.5;
+            colorVariation = 0.1;
+          } else if (emissionPattern < 0.9) {
+            colorBrightness = 2.5 + Math.random() * 0.5;
+            colorVariation = 0.2;
+          } else {
+            colorBrightness = 1.8 + Math.random() * 0.4;
+            colorVariation = -0.1;
+          }
+
+          const [r, g, b] = getColorFromFrequencyBands(
+            frequencyBands,
+            bandType
+          );
+          const finalR = r * colorBrightness + colorVariation;
+          const finalG = g * colorBrightness + colorVariation;
+          const finalB = b * colorBrightness + colorVariation;
+
+          attributes.color!.setXYZ(i, finalR, finalG, finalB);
+
+          // Set other attributes with safety checks
+          if (attributes.rotation) {
+            attributes.rotation.setX(i, Math.random() * Math.PI * 2);
+          }
+
+          const lifetime = PARTICLE_LIFETIME + Math.random();
+          attributes.lifetime!.setX(i, lifetime);
+
+          const fadeStart = 0.7 + Math.random() * 0.15;
+          const fadeLength = 0.15 + Math.random() * 0.15;
+          attributes.fadeStart!.setX(i, fadeStart);
+          attributes.fadeLength!.setX(i, fadeLength);
+
+          const turbulence = Math.random() * 0.4;
+          attributes.turbulence!.setX(i, turbulence);
+
+          const bandInfluence = Math.floor(Math.random() * 3);
+          attributes.band!.setX(i, bandInfluence);
+
+          particlesActivated++;
+        } catch (error) {
+          console.error("Error updating particle attributes:", error);
+          continue;
         }
-
-        // Position exactly at the plane level (y = 0)
-        const posY = 0;
-
-        // Set position
-        const positionAttr = geometry.getAttribute(
-          "position"
-        ) as THREE.BufferAttribute;
-        positionAttr.setXYZ(i, posX, posY, posZ);
-
-        // Set initial velocity - MODIFIED for more varied behavior
-        const velocityAttr = geometry.getAttribute(
-          "aVelocity"
-        ) as THREE.BufferAttribute;
-
-        // More varied upward velocity
-        const upwardVelocity = avgAudioLevel / 4; // Reduced from /3 to /4 for slower upward movement
-
-        // Calculate outward direction - INCREASED outward movement
-        const distanceFromCenter = Math.sqrt(posX * posX + posZ * posZ);
-        const centerBias = Math.min(1.0, distanceFromCenter / radius);
-
-        // MORE outward velocity for particles, less inward bias
-        const dirFactor = centerBias * (0.15 + Math.random() * 0.2); // Reduced from 0.2+0.3 to 0.15+0.2
-        const dirX =
-          posX === 0
-            ? 0
-            : (Math.random() < 0.3 ? -Math.sign(posX) : Math.sign(posX)) *
-              dirFactor;
-        const dirZ =
-          posZ === 0
-            ? 0
-            : (Math.random() < 0.3 ? -Math.sign(posZ) : Math.sign(posZ)) *
-              dirFactor;
-
-        const outwardFactor = 0.03 + Math.random() * 0.05; // Reduced from 0.05+0.1 to 0.03+0.05
-
-        const swirling = 0.3; // Reduced from 0.5 to 0.3 for gentler swirling
-
-        const swirlStrength = swirling * (0.2 + Math.random() * 0.05); // Reduced from 0.3+0.1 to 0.2+0.05
-        const swirlTime = currentTime * (0.1 + Math.random() * 0.05) + i * 0.01; // Reduced time multiplier from 0.2+0.1 to 0.1+0.05
-        const dirVx = Math.cos(swirlTime) * swirlStrength;
-        const dirVz = Math.sin(swirlTime) * swirlStrength;
-
-        // Create initial velocity vector - MORE SPREAD and directional variety
-        const vx = dirX * outwardFactor + dirVx + (Math.random() - 0.5) * 0.2; // Reduced random factor from 0.5 to 0.2
-        const vy = upwardVelocity * (0.6 + Math.random() * 0.3); // Reduced from 0.8+0.4 to 0.6+0.3
-        const vz = dirZ * outwardFactor + dirVz + (Math.random() - 0.5) * 0.2; // Reduced random factor from 0.5 to 0.2
-
-        // Set both velocity and initial velocity
-        velocityAttr.setXYZ(i, vx, vy, vz);
-        initialVelocityAttr.setXYZ(i, vx, vy, vz);
-
-        // Set color based on frequency bands - NEW: more varied color strategies
-        const bandType = ["low", "mid", "high"][
-          Math.floor(Math.random() * 3)
-        ] as "low" | "mid" | "high";
-
-        // Add color variation and intensity based on emission pattern
-        let colorBrightness = 5; // Base brightness
-        let colorVariation = 0;
-
-        // Vary colors based on emission pattern
-        if (emissionPattern < 0.4) {
-          // Standard pattern - normal brightness
-          colorBrightness = 2.0 + Math.random() * 0.4;
-        } else if (emissionPattern < 0.7) {
-          // Ring pattern - brighter colors
-          colorBrightness = 2.3 + Math.random() * 0.5;
-          colorVariation = 0.1;
-        } else if (emissionPattern < 0.9) {
-          // Cluster pattern - most intense colors
-          colorBrightness = 2.5 + Math.random() * 0.5;
-          colorVariation = 0.2;
-        } else {
-          // Center pattern - softer colors
-          colorBrightness = 1.8 + Math.random() * 0.4;
-          colorVariation = -0.1;
-        }
-
-        const [r, g, b] = getColorFromFrequencyBands(frequencyBands, bandType);
-
-        // Apply color variation
-        const finalR = r * colorBrightness + colorVariation;
-        const finalG = g * colorBrightness + colorVariation;
-        const finalB = b * colorBrightness + colorVariation;
-
-        colorAttr.setXYZ(i, finalR, finalG, finalB);
-
-        // Set random rotation
-        rotationAttr.setX(i, Math.random() * Math.PI * 2);
-
-        // More varied lifetime for particles
-        const lifetime = PARTICLE_LIFETIME + Math.random();
-        lifetimeAttr.setX(i, lifetime);
-
-        // Set fade parameters - MORE varied for different particles
-        const fadeStart = 0.7 + Math.random() * 0.15; // Changed from fixed 0.8 to 0.7-0.85 range
-        const fadeLength = 0.15 + Math.random() * 0.15; // Changed from fixed 0.2 to 0.15-0.3 range
-        fadeStartAttr.setX(i, fadeStart);
-        fadeLengthAttr.setX(i, fadeLength);
-
-        // Set turbulence factor - INCREASED for more varied movement
-        const turbulence = Math.random() * 0.4;
-        turbulenceAttr.setX(i, turbulence);
-
-        // Set frequency band influence
-        const bandInfluence = Math.floor(Math.random() * 3); // 0=bass, 1=mid, 2=high
-        bandAttr.setX(i, bandInfluence);
-
-        particlesActivated++;
       }
     }
 
-    // Mark attributes as needing update
-    geometry.getAttribute("position").needsUpdate = true;
-    geometry.getAttribute("aVelocity").needsUpdate = true;
-    initialVelocityAttr.needsUpdate = true;
-    activeAttr.needsUpdate = true;
-    burstTimeAttr.needsUpdate = true;
-    colorAttr.needsUpdate = true;
-    rotationAttr.needsUpdate = true;
-    lifetimeAttr.needsUpdate = true;
-    fadeStartAttr.needsUpdate = true;
-    fadeLengthAttr.needsUpdate = true;
-    turbulenceAttr.needsUpdate = true;
-    bandAttr.needsUpdate = true;
+    // Mark attributes as needing update with safety checks
+    Object.values(attributes).forEach((attr) => {
+      if (attr) attr.needsUpdate = true;
+    });
 
     // Update active particle count
     activeParticlesRef.current += particlesActivated;
@@ -1010,25 +821,25 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
           <bufferAttribute
             attach="attributes-position"
             count={PARTICLE_COUNT}
-            array={positions}
+            array={particleAttributes.positions}
             itemSize={3}
           />
           <bufferAttribute
             attach="attributes-aScale"
             count={PARTICLE_COUNT}
-            array={scales}
+            array={particleAttributes.scales}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aOffset"
             count={PARTICLE_COUNT}
-            array={offsets}
+            array={particleAttributes.offsets}
             itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aVelocity"
             count={PARTICLE_COUNT}
-            array={velocities}
+            array={particleAttributes.velocities}
             itemSize={3}
           />
           <bufferAttribute
@@ -1054,12 +865,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
             count={PARTICLE_COUNT}
             array={COLOR_ARRAY}
             itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-aRotation"
-            count={PARTICLE_COUNT}
-            array={ROTATION_ARRAY}
-            itemSize={1}
           />
           <bufferAttribute
             attach="attributes-aLifetime"
