@@ -5,10 +5,6 @@ import { useAudio } from "@/contexts/AudioContext";
 import { VisualizerProps } from "@/types/visualizers";
 import { useColorPalette } from "@/hooks/useColorPalette";
 
-// Cache for smoke texture to avoid recreating it
-let smokeTextureCache: THREE.Texture | null = null;
-
-const SIZE = 512;
 const PARTICLE_COUNT = 500;
 const AVG_AUDIO_DATA_THRESHOLD = 25;
 const PARTICLE_LIFETIME = 0.5;
@@ -24,60 +20,6 @@ const FADE_LENGTH_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const TURBULENCE_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const BAND_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
 const INITIAL_VELOCITY_ARRAY = new Float32Array(PARTICLE_COUNT * 3).fill(0);
-
-// Create a smoke texture
-const createSmokeTexture = () => {
-  const canvas = document.createElement("canvas");
-  canvas.width = SIZE;
-  canvas.height = SIZE;
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) return null;
-
-  // Create a radial gradient for softer particles with gentle fade
-  const gradient = ctx.createRadialGradient(
-    SIZE / 2,
-    SIZE / 2,
-    0,
-    SIZE / 2,
-    SIZE / 2,
-    SIZE / 2
-  );
-
-  // Softer gradient with gentler fade for more graceful particles
-  gradient.addColorStop(0, "rgba(255, 255, 255, 0.8)"); // Reduced from 0.95 to 0.8
-  gradient.addColorStop(0.3, "rgba(255, 255, 255, 0.5)"); // Adjusted from 0.2/0.8 to 0.3/0.5
-  gradient.addColorStop(0.6, "rgba(255, 255, 255, 0.2)"); // Adjusted from 0.5/0.3 to 0.6/0.2
-  gradient.addColorStop(0.8, "rgba(255, 255, 255, 0.05)"); // Adjusted from 0.7/0.1 to 0.8/0.05
-  gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, SIZE, SIZE);
-
-  ctx.globalAlpha = 0.01; // Reduced from 0.02 to 0.01
-  for (let i = 0; i < 1500; i++) {
-    const x = Math.random() * SIZE;
-    const y = Math.random() * SIZE;
-    const radius = Math.random() * 1.2; // Reduced from 1.5 to 1.2
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = "white";
-    ctx.fill();
-  }
-
-  // Apply minimal blur for softer edges
-  try {
-    const ctxWithFilter = ctx as CanvasRenderingContext2D & { filter: string };
-    ctxWithFilter.filter = "blur(0px)"; // Reduced from 4px to 3px for sharper particles
-    ctx.drawImage(canvas, 0, 0);
-    ctxWithFilter.filter = "none";
-  } catch {
-    // Fallback if filter not supported
-    console.log("Canvas filter not supported, skipping blur");
-  }
-
-  return canvas;
-};
 
 // Vertex shader for smoke particles
 const vertexShader = `
@@ -336,10 +278,8 @@ const vertexShader = `
   }
 `;
 
-// Fragment shader for smoke particles
+// Update fragment shader to generate texture procedurally
 const fragmentShader = `
-  uniform sampler2D uTexture;
-  
   varying vec3 vColor;
   varying float vAlpha;
   varying float vRotation;
@@ -358,23 +298,28 @@ const fragmentShader = `
       c * centeredCoord.y - s * centeredCoord.x + 0.5
     );
     
-    // Sample texture with rotation
-    vec4 texColor = texture2D(uTexture, rotatedUV);
+    // Create a radial gradient for the particle
+    float dist = length(rotatedUV - 0.5);
+    float radialGradient = 1.0 - smoothstep(0.0, 0.5, dist);
     
-    // Apply color and alpha - enhanced brightness for more visible particles
-    vec3 color = vColor * texColor.rgb * 1.2; // Increased from 0.9 to 1.2
+    // Add some noise to break up the perfect circle
+    float noise = fract(sin(dot(rotatedUV, vec2(12.9898, 78.233))) * 43758.5453);
+    radialGradient *= (0.9 + noise * 0.1);
+    
+    // Apply soft edges
+    float alpha = radialGradient * radialGradient * vAlpha;
+    
+    // Apply color with enhanced brightness
+    vec3 color = vColor * (1.2 + radialGradient * 0.3);
     
     // Add slight color shift for more vibrant appearance
-    color += vec3(0.05, 0.05, 0.05); // Add a small amount of white to brighten
+    color += vec3(0.05, 0.05, 0.05);
     
     // Enhance contrast
-    color = pow(color, vec3(0.9)); // Slightly increase contrast
+    color = pow(color, vec3(0.9));
     
-    // Adjust alpha for more defined particles - increased for better visibility
-    float alpha = texColor.a * vAlpha * 1.0; // Increased from 0.8 to 1.0
-    
-    // Discard fewer transparent pixels for more visible particles
-    if (alpha < 0.01) discard; // Reduced threshold from 0.02 to 0.01
+    // Discard very transparent pixels
+    if (alpha < 0.01) discard;
     
     // Output color with alpha
     gl_FragColor = vec4(color, alpha);
@@ -409,23 +354,15 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   const beatDecayRef = useRef(0);
   const beatDecayRateRef = useRef(0.05);
 
-  // Create smoke texture with caching
-  const smokeTexture = useMemo(() => {
-    // Use cached texture if available
-    if (smokeTextureCache) {
-      return smokeTextureCache;
-    }
-
-    const canvas = createSmokeTexture();
-    if (!canvas) return null;
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-
-    smokeTextureCache = texture;
-
-    return texture;
-  }, []);
+  // Create uniforms for the shader - removed texture uniform
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uSize: { value: 200 },
+      uAudioData: { value: new THREE.Vector3(0, 0, 0) },
+    }),
+    []
+  );
 
   // Create particles with initial attributes
   const { positions, scales, offsets, velocities } = useMemo(() => {
@@ -455,17 +392,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
 
     return { positions, scales, offsets, velocities };
   }, []);
-
-  // Create uniforms for the shader
-  const uniforms = useMemo(
-    () => ({
-      uTime: { value: 0 },
-      uSize: { value: 200 }, // Reduced from 300 to 200 for better scale
-      uTexture: { value: smokeTexture },
-      uAudioData: { value: new THREE.Vector3(0, 0, 0) },
-    }),
-    [smokeTexture]
-  );
 
   // Reset state when audio track changes
   useEffect(() => {
@@ -997,9 +923,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     };
   }, []);
 
-  // Don't render until texture is initialized
-  if (!smokeTexture) return null;
-
   return (
     <>
       {/* Static and invisible emission plane */}
@@ -1104,13 +1027,6 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       </points>
     </>
   );
-};
-
-export const cleanupSmokeVisualizer = () => {
-  if (smokeTextureCache) {
-    smokeTextureCache.dispose();
-    smokeTextureCache = null;
-  }
 };
 
 export default SmokeVisualizer;
