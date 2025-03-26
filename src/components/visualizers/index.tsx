@@ -64,5 +64,5 @@ export function getVisualizerInfo(
 
 // Function to get the default visualizer type
 export function getDefaultVisualizerType(): VisualizerType {
-  return "smoke";
+  return "icosahedron";
 }

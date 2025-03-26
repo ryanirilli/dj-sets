@@ -159,13 +159,25 @@ const EnvironmentSelector = () => {
 
       {/* Environment controls section */}
       <div className="space-y-3 mt-2">
-        {/* Blurriness slider - always visible */}
+        {/* Blurriness slider */}
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="text-xs text-foreground">
+            <label
+              className={`text-xs ${
+                !selectedEnvironment
+                  ? "text-disabled-foreground"
+                  : "text-foreground"
+              }`}
+            >
               Background Blurriness
             </label>
-            <span className="text-xs text-muted-foreground">
+            <span
+              className={`text-xs ${
+                !selectedEnvironment
+                  ? "text-disabled-foreground"
+                  : "text-muted-foreground"
+              }`}
+            >
               {Math.round(localBlurriness * 100)}%
             </span>
           </div>
@@ -175,16 +187,29 @@ const EnvironmentSelector = () => {
             step={0.01}
             onValueChange={handleBlurrinessChange}
             className="py-1"
+            disabled={!selectedEnvironment}
           />
         </div>
 
-        {/* Opacity slider - always visible */}
+        {/* Opacity slider */}
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="text-xs text-foreground">
+            <label
+              className={`text-xs ${
+                !selectedEnvironment
+                  ? "text-disabled-foreground"
+                  : "text-foreground"
+              }`}
+            >
               Environment Opacity
             </label>
-            <span className="text-xs text-muted-foreground">
+            <span
+              className={`text-xs ${
+                !selectedEnvironment
+                  ? "text-disabled-foreground"
+                  : "text-muted-foreground"
+              }`}
+            >
               {Math.round(localIntensity * 100)}%
             </span>
           </div>
@@ -194,29 +219,41 @@ const EnvironmentSelector = () => {
             step={0.01}
             onValueChange={handleIntensityChange}
             className="py-1"
+            disabled={!selectedEnvironment}
           />
         </div>
 
-        {/* Tint Strength slider - only visible when an environment is selected */}
-        {selectedEnvironment && (
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <label className="text-xs text-foreground">
-                Color Tint Strength
-              </label>
-              <span className="text-xs text-muted-foreground">
-                {Math.round(localTintStrength * 100)}%
-              </span>
-            </div>
-            <Slider
-              value={[localTintStrength]}
-              max={1}
-              step={0.01}
-              onValueChange={handleTintStrengthChange}
-              className="py-1"
-            />
+        {/* Tint Strength slider - now always visible */}
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label
+              className={`text-xs ${
+                !selectedEnvironment
+                  ? "text-disabled-foreground"
+                  : "text-foreground"
+              }`}
+            >
+              Color Tint Strength
+            </label>
+            <span
+              className={`text-xs ${
+                !selectedEnvironment
+                  ? "text-disabled-foreground"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {Math.round(localTintStrength * 100)}%
+            </span>
           </div>
-        )}
+          <Slider
+            value={[localTintStrength]}
+            max={1}
+            step={0.01}
+            onValueChange={handleTintStrengthChange}
+            className="py-1"
+            disabled={!selectedEnvironment}
+          />
+        </div>
       </div>
     </div>
   );

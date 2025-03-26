@@ -44,10 +44,21 @@
     --control-foreground: 0 0% 100%;
     --control-thumb: 0 0% 100%;
     --control-thumb-border: 270 60% 85%;
+    --control-track-disabled: 0 0% 90%;
+    --control-active-disabled: 0 0% 85%;
+    --control-thumb-disabled: 0 0% 95%;
+    --control-thumb-border-disabled: 0 0% 85%;
+
+    /* Disabled State Colors */
+    --disabled-background: 0 0% 90%;
+    --disabled-foreground: 0 0% 60%;
+    --disabled-border: 0 0% 85%;
 
     /* UI State Colors */
     --ui-active-bg: hsl(var(--control-track));
     --ui-hover-bg: hsl(var(--control-track) / 0.5);
+    --ui-disabled-bg: hsl(var(--disabled-background));
+    --ui-disabled-fg: hsl(var(--disabled-foreground));
   }
 
   html,
@@ -96,10 +107,21 @@
     --control-foreground: 0 0% 100%;
     --control-thumb: 0 0% 100%;
     --control-thumb-border: 270 70% 45%;
+    --control-track-disabled: 0 0% 20%;
+    --control-active-disabled: 0 0% 25%;
+    --control-thumb-disabled: 0 0% 30%;
+    --control-thumb-border-disabled: 0 0% 25%;
+
+    /* Disabled State Colors - Dark mode */
+    --disabled-background: 0 0% 20%;
+    --disabled-foreground: 0 0% 40%;
+    --disabled-border: 0 0% 25%;
 
     /* UI State Colors - Dark mode */
     --ui-active-bg: hsl(var(--control-track));
     --ui-hover-bg: hsl(var(--control-track) / 0.5);
+    --ui-disabled-bg: hsl(var(--disabled-background));
+    --ui-disabled-fg: hsl(var(--disabled-foreground));
   }
 }
 
