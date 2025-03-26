@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import {
   Select,
   SelectContent,
@@ -12,56 +12,49 @@ interface AudioSelectorProps {
   selectedFile: string | null;
 }
 
-const AudioSelector = ({ onSelect, selectedFile }: AudioSelectorProps) => {
+const AudioSelector = memo(({ onSelect, selectedFile }: AudioSelectorProps) => {
   const [audioFiles, setAudioFiles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Memoize the fetch function without dependencies that change frequently
+  const fetchAudioFiles = useCallback(async () => {
+    try {
+      const response = await fetch("/api/audio-files");
+      if (!response.ok) {
+        throw new Error("Failed to fetch audio files");
+      }
+      const data = await response.json();
+      setAudioFiles(data.files);
+    } catch (err) {
+      console.error("Error fetching audio files:", err);
+      setError("Failed to load audio files. Please try again later.");
+
+      // Fallback to a static list for demo purposes
+      const fallbackFiles = ["demo1.mp3", "demo2.mp3"];
+      setAudioFiles(fallbackFiles);
+    } finally {
+      setLoading(false);
+    }
+  }, []); // No dependencies needed for the fetch function
+
+  // Initial fetch effect
   useEffect(() => {
     let isMounted = true;
-
-    const fetchAudioFiles = async () => {
-      try {
-        const response = await fetch("/api/audio-files");
-        if (!response.ok) {
-          throw new Error("Failed to fetch audio files");
-        }
-        const data = await response.json();
-
-        if (isMounted) {
-          setAudioFiles(data.files);
-
-          // If we have files and none is selected, select the first one
-          if (data.files.length > 0 && !selectedFile) {
-            onSelect(`/audio/${data.files[0]}`);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching audio files:", err);
-        if (isMounted) {
-          setError("Failed to load audio files. Please try again later.");
-
-          // Fallback to a static list for demo purposes
-          const fallbackFiles = ["demo1.mp3", "demo2.mp3"];
-          setAudioFiles(fallbackFiles);
-
-          if (fallbackFiles.length > 0 && !selectedFile) {
-            onSelect(`/audio/${fallbackFiles[0]}`);
-          }
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchAudioFiles();
-
+    if (isMounted) {
+      fetchAudioFiles();
+    }
     return () => {
       isMounted = false;
     };
-  }, [onSelect, selectedFile]);
+  }, [fetchAudioFiles]);
+
+  // Handle initial file selection in a separate effect
+  useEffect(() => {
+    if (audioFiles.length > 0 && !selectedFile) {
+      onSelect(`/audio/${audioFiles[0]}`);
+    }
+  }, [audioFiles, selectedFile, onSelect]);
 
   if (loading) {
     return (
@@ -111,6 +104,8 @@ const AudioSelector = ({ onSelect, selectedFile }: AudioSelectorProps) => {
       </SelectContent>
     </Select>
   );
-};
+});
+
+AudioSelector.displayName = "AudioSelector";
 
 export default AudioSelector;
