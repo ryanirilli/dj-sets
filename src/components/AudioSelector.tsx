@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { memo } from "react";
+import { useAudio } from "@/contexts/AudioContext";
 import {
   Select,
   SelectContent,
@@ -13,50 +14,9 @@ interface AudioSelectorProps {
 }
 
 const AudioSelector = memo(({ onSelect, selectedFile }: AudioSelectorProps) => {
-  const [audioFiles, setAudioFiles] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { availableTracks, loadingTracks } = useAudio();
 
-  // Memoize the fetch function without dependencies that change frequently
-  const fetchAudioFiles = useCallback(async () => {
-    try {
-      const response = await fetch("/api/audio-files");
-      if (!response.ok) {
-        throw new Error("Failed to fetch audio files");
-      }
-      const data = await response.json();
-      setAudioFiles(data.files);
-    } catch (err) {
-      console.error("Error fetching audio files:", err);
-      setError("Failed to load audio files. Please try again later.");
-
-      // Fallback to a static list for demo purposes
-      const fallbackFiles = ["demo1.mp3", "demo2.mp3"];
-      setAudioFiles(fallbackFiles);
-    } finally {
-      setLoading(false);
-    }
-  }, []); // No dependencies needed for the fetch function
-
-  // Initial fetch effect
-  useEffect(() => {
-    let isMounted = true;
-    if (isMounted) {
-      fetchAudioFiles();
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchAudioFiles]);
-
-  // Handle initial file selection in a separate effect
-  useEffect(() => {
-    if (audioFiles.length > 0 && !selectedFile) {
-      onSelect(`/audio/${audioFiles[0]}`);
-    }
-  }, [audioFiles, selectedFile, onSelect]);
-
-  if (loading) {
+  if (loadingTracks) {
     return (
       <div className="text-white/40 text-sm font-medium animate-pulse">
         Loading tracks...
@@ -64,11 +24,7 @@ const AudioSelector = memo(({ onSelect, selectedFile }: AudioSelectorProps) => {
     );
   }
 
-  if (error) {
-    return <div className="text-red-400/80 text-sm font-medium">{error}</div>;
-  }
-
-  if (audioFiles.length === 0) {
+  if (availableTracks.length === 0) {
     return (
       <div className="text-white/40 text-sm font-medium">
         No audio files found in /public/audio
@@ -92,7 +48,7 @@ const AudioSelector = memo(({ onSelect, selectedFile }: AudioSelectorProps) => {
         sideOffset={5}
         align="center"
       >
-        {audioFiles.map((file) => (
+        {availableTracks.map((file) => (
           <SelectItem
             key={file}
             value={file}

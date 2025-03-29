@@ -14,6 +14,8 @@ import {
   FaChevronDown,
   FaSlidersH,
   FaSync,
+  FaStepForward,
+  FaStepBackward,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -40,6 +42,8 @@ export const Toolbar = ({
     currentTime,
     duration,
     audioRef,
+    previousTrack,
+    nextTrack,
   } = useAudio();
 
   // Use scene context as a bridge to settings context
@@ -128,8 +132,17 @@ export const Toolbar = ({
           {/* Empty space on the left for balance */}
           <div className="flex-1"></div>
 
-          {/* Play/Pause Button in center */}
-          <div className="flex-1 flex justify-center">
+          {/* Play/Pause Button in center with next/prev controls */}
+          <div className="flex-1 flex justify-center items-center space-x-2">
+            <Button
+              onClick={previousTrack}
+              size="icon"
+              variant="outline"
+              className="rounded-full w-8 h-8"
+            >
+              <FaStepBackward size={14} />
+            </Button>
+
             <Button
               onClick={() => {
                 console.log("Play button clicked");
@@ -144,6 +157,15 @@ export const Toolbar = ({
               ) : (
                 <FaPlay size={18} className="ml-1" />
               )}
+            </Button>
+
+            <Button
+              onClick={nextTrack}
+              size="icon"
+              variant="outline"
+              className="rounded-full w-8 h-8"
+            >
+              <FaStepForward size={14} />
             </Button>
           </div>
 

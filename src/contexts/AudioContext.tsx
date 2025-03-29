@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
+import { useSettings } from "./SettingsContext";
 
 interface AudioContextType {
   audioData: Uint8Array | null;
@@ -20,6 +21,10 @@ interface AudioContextType {
   onBeat: boolean;
   beatTime: number;
   avgAudioLevel: number;
+  availableTracks: string[];
+  nextTrack: () => void;
+  previousTrack: () => void;
+  loadingTracks: boolean;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
@@ -33,17 +38,18 @@ export function useAudio() {
 }
 
 export function AudioProvider({ children }: { children: React.ReactNode }) {
+  const { settings, updateSettings } = useSettings();
   const [audioData, setAudioData] = useState<Uint8Array | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(
-    "/audio/set-00.mp3"
-  );
+  const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(null);
   const [bpm, setBpm] = useState<number>(120); // Default BPM
   const [onBeat, setOnBeat] = useState<boolean>(false);
   const [beatTime, setBeatTime] = useState<number>(0);
   const [avgAudioLevel, setAvgAudioLevel] = useState<number>(0);
+  const [availableTracks, setAvailableTracks] = useState<string[]>([]);
+  const [loadingTracks, setLoadingTracks] = useState(true);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -66,6 +72,95 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   // Add a throttle mechanism to reduce the frequency of audio data updates
   const lastUpdateTimeRef = useRef(0);
   const updateIntervalRef = useRef(1000 / 30); // 30 fps instead of 60
+
+  // Fetch audio files
+  const fetchAudioFiles = useCallback(async () => {
+    try {
+      setLoadingTracks(true);
+      const response = await fetch("/api/audio-files");
+      if (!response.ok) {
+        throw new Error("Failed to fetch audio files");
+      }
+      const data = await response.json();
+      setAvailableTracks(data.files);
+    } catch (err) {
+      console.error("Error fetching audio files:", err);
+      // Fallback to a static list for demo purposes
+      const fallbackFiles = ["demo1.mp3", "demo2.mp3"];
+      setAvailableTracks(fallbackFiles);
+    } finally {
+      setLoadingTracks(false);
+    }
+  }, []);
+
+  // Initial fetch effect
+  useEffect(() => {
+    let isMounted = true;
+    if (isMounted) {
+      fetchAudioFiles();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchAudioFiles]);
+
+  // Initialize audio file from settings
+  useEffect(() => {
+    // If tracks are loaded and no current audio file is selected
+    if (availableTracks.length > 0 && !currentAudioFile) {
+      // If there's a saved audio file in settings, use that
+      if (settings.selectedAudioFile) {
+        setAudioFile(settings.selectedAudioFile);
+      }
+      // Otherwise use the first track
+      else {
+        const firstTrack = `/audio/${availableTracks[0]}`;
+        setAudioFile(firstTrack);
+        updateSettings("selectedAudioFile", firstTrack);
+      }
+    }
+  }, [
+    availableTracks,
+    currentAudioFile,
+    settings.selectedAudioFile,
+    updateSettings,
+  ]);
+
+  // Next and previous track functions
+  const nextTrack = useCallback(() => {
+    if (availableTracks.length === 0 || !currentAudioFile) return;
+
+    const currentFileName = currentAudioFile.split("/").pop();
+    const currentIndex = availableTracks.findIndex(
+      (track) => track === currentFileName
+    );
+
+    if (currentIndex === -1) return;
+
+    const nextIndex = (currentIndex + 1) % availableTracks.length;
+    const nextTrack = `/audio/${availableTracks[nextIndex]}`;
+
+    setAudioFile(nextTrack);
+    updateSettings("selectedAudioFile", nextTrack);
+  }, [availableTracks, currentAudioFile, updateSettings]);
+
+  const previousTrack = useCallback(() => {
+    if (availableTracks.length === 0 || !currentAudioFile) return;
+
+    const currentFileName = currentAudioFile.split("/").pop();
+    const currentIndex = availableTracks.findIndex(
+      (track) => track === currentFileName
+    );
+
+    if (currentIndex === -1) return;
+
+    const prevIndex =
+      (currentIndex - 1 + availableTracks.length) % availableTracks.length;
+    const prevTrack = `/audio/${availableTracks[prevIndex]}`;
+
+    setAudioFile(prevTrack);
+    updateSettings("selectedAudioFile", prevTrack);
+  }, [availableTracks, currentAudioFile, updateSettings]);
 
   // Define handleTimeUpdate and handleDurationChange first
   const handleTimeUpdate = useCallback(() => {
@@ -678,6 +773,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     onBeat,
     beatTime,
     avgAudioLevel,
+    availableTracks,
+    nextTrack,
+    previousTrack,
+    loadingTracks,
   };
 
   return (

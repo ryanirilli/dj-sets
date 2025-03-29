@@ -29,7 +29,7 @@ const VisualizerLoading = () => (
 );
 
 function HomeContent() {
-  const { audioData, setAudioFile, currentAudioFile } = useAudio();
+  const { audioData } = useAudio();
   const { settings, updateSettings } = useSettings();
   const [activeVisualizerType, setActiveVisualizerType] =
     useState<VisualizerType>(settings.visualizerType);
@@ -48,42 +48,11 @@ function HomeContent() {
       "[DEBUG] Initial audio file from settings:",
       settings.selectedAudioFile
     );
-    console.log("[DEBUG] Current audio file in context:", currentAudioFile);
-
-    // Log the URL to see if it has a visualizer parameter
     console.log("[DEBUG] Current URL:", window.location.href);
   }, [
     settings.visualizerType,
     activeVisualizerType,
     settings.selectedAudioFile,
-    currentAudioFile,
-  ]);
-
-  // Initialize audio file from settings
-  useEffect(() => {
-    // If there's an audio file in settings and it's different from current
-    if (
-      settings.selectedAudioFile &&
-      settings.selectedAudioFile !== currentAudioFile
-    ) {
-      console.log(
-        "[DEBUG] Setting audio file from settings:",
-        settings.selectedAudioFile
-      );
-      setAudioFile(settings.selectedAudioFile);
-    } else if (currentAudioFile && !settings.selectedAudioFile) {
-      // If audio is playing but not in settings, update settings
-      console.log(
-        "[DEBUG] Saving current audio file to settings:",
-        currentAudioFile
-      );
-      updateSettings("selectedAudioFile", currentAudioFile);
-    }
-  }, [
-    settings.selectedAudioFile,
-    currentAudioFile,
-    setAudioFile,
-    updateSettings,
   ]);
 
   // Make sure we initialize with the correct visualizer type on mount
