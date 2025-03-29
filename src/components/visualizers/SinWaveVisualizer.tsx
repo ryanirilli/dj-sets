@@ -6,31 +6,67 @@ import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
 
 const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
-  const { isPlaying } = useAudio();
+  const { isPlaying, onBeat, beatTime, avgAudioLevel } = useAudio();
   const { colorPalette } = useSceneContext();
   const groupRef = useRef<THREE.Group>(null);
   const timeRef = useRef(0);
+  const lastBeatTimeRef = useRef(0);
+  const beatPulseRef = useRef(0);
+  const frequencyBandsRef = useRef<number[]>([0, 0, 0]); // [bass, mid, high]
 
   // Configuration
-  const NUM_WAVES = 6; // Number of sine waves
+  const NUM_WAVES = 4; // Number of sine waves
   const POINTS_PER_WAVE = 100; // Points per sine wave
-  const WAVE_WIDTH = 16; // Width of the sine wave - increased to provide more space for fading
+  const WAVE_WIDTH = 20; // Width of the sine wave - increased to provide more space for fading
   const WAVE_HEIGHT_BASE = 0.5; // Base height of sine wave
-  const MAX_WAVE_HEIGHT = 3; // Maximum height of sine wave
+  const MAX_WAVE_HEIGHT = 2; // Maximum height of sine wave
   const WAVE_SPACING = 0.7; // Vertical spacing between waves
   const FADE_PERCENT = 0.15; // Percentage of the wave that fades out at each end
+  const FLOW_SPEED = 0.8; // Speed of the flowing movement
+  const WAVE_VARIATION = 0.01; // Amount of random variation in waves
+  const BEAT_PULSE_STRENGTH = 0.6; // Strength of the beat pulse (0-1)
+  const BEAT_PULSE_DECAY = 5; // How quickly the beat pulse decays
+  const AUDIO_LEVEL_THRESHOLD = 25; // Minimum audio level to trigger beat pulse effects
+  const HORIZONTAL_OFFSET = 20; // Amount of horizontal offset between waves
+  const BAND_INFLUENCE = 0.7; // How much the frequency bands influence wave behavior
+
+  const flowOffsetRef = useRef(0);
+  // Create individual flow speeds for each wave
+  const waveFlowSpeeds = useRef<number[]>(
+    new Array(NUM_WAVES)
+      .fill(0)
+      .map(() => FLOW_SPEED * (0.7 + Math.random() * 0.6))
+  );
+  // Create individual horizontal offsets for each wave
+  const waveHorizontalOffsets = useRef<number[]>(
+    new Array(NUM_WAVES).fill(0).map(() => Math.random() * Math.PI * 2)
+  );
+  const wavePhaseOffsets = useRef<number[]>(
+    new Array(NUM_WAVES).fill(0).map(() => Math.random() * Math.PI * 2)
+  );
+  // Assign each wave to respond to a specific frequency band
+  const waveBandAssignments = useRef<number[]>(
+    new Array(NUM_WAVES).fill(0).map(() => {
+      // Distribute waves across frequency bands more randomly
+      return Math.floor(Math.random() * 3); // 0 = low, 1 = mid, 2 = high
+    })
+  );
 
   // Create references for all wave lines
   const lineRefs = useRef<THREE.Line[]>([]);
   const waveAmplitudes = useRef<number[]>(
     new Array(NUM_WAVES).fill(WAVE_HEIGHT_BASE)
   );
+  // Individual flow offsets for each wave for more varied movement
+  const waveFlowPositions = useRef<number[]>(new Array(NUM_WAVES).fill(0));
 
   // Create sine wave geometry with fade-out on edges
   const createSineWaveGeometry = (
     frequency: number,
     phase: number,
-    amplitude: number
+    amplitude: number,
+    horizontalOffset: number = 0,
+    distortion: number = 0 // Add distortion parameter
   ) => {
     const points = [];
     const step = WAVE_WIDTH / (POINTS_PER_WAVE - 1);
@@ -39,7 +75,25 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
 
     for (let i = 0; i < POINTS_PER_WAVE; i++) {
       const x = -WAVE_WIDTH / 2 + i * step;
-      const y = Math.sin(frequency * x + phase) * amplitude;
+
+      // Apply horizontal offset to the wave by shifting the x-coordinate in the sine calculation
+      // Add distortion based on frequency bands
+      let y = Math.sin(frequency * (x + horizontalOffset) + phase) * amplitude;
+
+      // Apply distortion to the wave if distortion value is provided
+      if (distortion > 0) {
+        // Add higher harmonics based on distortion amount
+        y +=
+          Math.sin(frequency * 2 * (x + horizontalOffset) + phase * 1.5) *
+          amplitude *
+          0.3 *
+          distortion;
+        // Add noise/fragmentation at high distortion levels
+        if (distortion > 0.5) {
+          y += (Math.random() - 0.5) * amplitude * 0.2 * (distortion - 0.5);
+        }
+      }
+
       points.push(new THREE.Vector3(x, y, 0));
 
       // Calculate fade factor for this point
@@ -263,21 +317,116 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
     return sum / (end - start); // Average
   };
 
+  // Analyze the audio data into bass, mid, and high frequency bands
+  const analyzeFrequencyBands = (audioData: Uint8Array) => {
+    if (!audioData || audioData.length === 0) {
+      frequencyBandsRef.current = [0, 0, 0];
+      return [0, 0, 0];
+    }
+
+    // Analyze the audio data into bass, mid, and high frequency bands
+    const bass = getFrequencyBand(audioData, 0, 0.1); // First 10% - low frequencies
+    const mid = getFrequencyBand(audioData, 0.1, 0.5); // 10%-50% - mid frequencies
+    const high = getFrequencyBand(audioData, 0.5, 1.0); // 50%-100% - high frequencies
+
+    frequencyBandsRef.current = [bass, mid, high];
+    return [bass, mid, high];
+  };
+
   // Update waves based on audio data
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!lineRefs.current.length) return;
 
     // Update time to force material refresh
     timeRef.current += 0.01;
 
-    // Update material colors from the palette with enhanced brightness for fluorescent effect
+    // Update flow offset for continuous movement
+    flowOffsetRef.current += delta * FLOW_SPEED;
+
+    // Analyze audio data into frequency bands if playing
+    const [bass, mid, high] =
+      isPlaying && audioData
+        ? analyzeFrequencyBands(audioData)
+        : frequencyBandsRef.current;
+
+    // Update individual flow positions for each wave - influenced by frequency bands
+    for (let i = 0; i < NUM_WAVES; i++) {
+      const bandIndex = waveBandAssignments.current[i];
+      const bandEnergy = [bass, mid, high][bandIndex];
+
+      // Make flow speed responsive to the assigned frequency band
+      const bandFlowMultiplier = 1 + bandEnergy * BAND_INFLUENCE;
+      waveFlowPositions.current[i] +=
+        delta * waveFlowSpeeds.current[i] * bandFlowMultiplier;
+    }
+
+    // Handle beat pulse - only if audio level is above threshold
+    const shouldApplyBeatEffects = avgAudioLevel > AUDIO_LEVEL_THRESHOLD;
+
+    if (
+      onBeat &&
+      beatTime !== lastBeatTimeRef.current &&
+      shouldApplyBeatEffects
+    ) {
+      beatPulseRef.current = 1.0; // Set pulse to max on new beat
+      lastBeatTimeRef.current = beatTime;
+
+      // Add random variation to horizontal offsets on beat
+      if (Math.random() > 0.5) {
+        waveHorizontalOffsets.current = waveHorizontalOffsets.current.map(
+          (offset, i) => {
+            // Vary displacement based on frequency band
+            const bandIndex = waveBandAssignments.current[i];
+            const bandEnergy = [bass, mid, high][bandIndex];
+            const displacement =
+              (Math.random() * 2 - 1) * HORIZONTAL_OFFSET * (1 + bandEnergy);
+            return offset + displacement;
+          }
+        );
+      }
+
+      // Occasionally reassign waves to different frequency bands for more variation
+      if (Math.random() > 0.7) {
+        for (let i = 0; i < NUM_WAVES; i++) {
+          if (Math.random() > 0.5) {
+            waveBandAssignments.current[i] = Math.floor(Math.random() * 3);
+          }
+        }
+      }
+    } else {
+      // Decay the pulse over time
+      beatPulseRef.current = Math.max(
+        0,
+        beatPulseRef.current - delta * BEAT_PULSE_DECAY
+      );
+    }
+
+    // Update random phase offsets for more natural variation - influenced by frequency bands
+    wavePhaseOffsets.current = wavePhaseOffsets.current.map((offset, i) => {
+      const bandIndex = waveBandAssignments.current[i];
+      const bandEnergy = [bass, mid, high][bandIndex];
+      // More variation for higher energy in the wave's frequency band
+      const variationMultiplier = 1 + bandEnergy * BAND_INFLUENCE;
+      return (
+        offset +
+        delta * (0.5 + Math.random() * WAVE_VARIATION * variationMultiplier)
+      );
+    });
+
+    // Update material colors from the palette with enhanced brightness based on frequency bands
     materialInstances.forEach((material, i) => {
       const colorIndex = Math.floor(
         (i / NUM_WAVES) * colorPalette.colors.length
       );
       const color = new THREE.Color(colorPalette.colors[colorIndex]);
-      // Make the color more vibrant
-      color.multiplyScalar(1.5);
+
+      // Enhance brightness based on the wave's assigned frequency band
+      const bandIndex = waveBandAssignments.current[i];
+      const bandEnergy = [bass, mid, high][bandIndex];
+      const brightnessMultiplier = 1.5 + bandEnergy * 0.5;
+
+      // Make the color more vibrant, influenced by frequency energy
+      color.multiplyScalar(brightnessMultiplier);
       (material as THREE.LineBasicMaterial).color = color;
     });
 
@@ -287,8 +436,14 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
         (i / NUM_WAVES) * colorPalette.colors.length
       );
       const color = new THREE.Color(colorPalette.colors[colorIndex]);
-      // Make the color more vibrant
-      color.multiplyScalar(1.5);
+
+      // Enhance brightness based on the wave's assigned frequency band
+      const bandIndex = waveBandAssignments.current[i];
+      const bandEnergy = [bass, mid, high][bandIndex];
+      const brightnessMultiplier = 1.5 + bandEnergy * 0.5;
+
+      // Make the color more vibrant, influenced by frequency energy
+      color.multiplyScalar(brightnessMultiplier);
       (material as THREE.MeshBasicMaterial).color = color;
     });
 
@@ -305,8 +460,24 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
           const endPercent = (i + 1) * bandSize;
           const energy = getFrequencyBand(audioData, startPercent, endPercent);
 
-          // Calculate target amplitude with some additional variation
-          const targetAmplitude = WAVE_HEIGHT_BASE + energy * MAX_WAVE_HEIGHT;
+          // Get the assigned frequency band for this wave
+          const bandIndex = waveBandAssignments.current[i];
+          const bandEnergy = [bass, mid, high][bandIndex];
+
+          // Add beat pulse to the amplitude calculation only if above threshold
+          const beatAmplification = shouldApplyBeatEffects
+            ? 1 + beatPulseRef.current * BEAT_PULSE_STRENGTH * (1 + i * 0.2)
+            : 1;
+
+          // Calculate target amplitude based on:
+          // 1. The general energy in the wave's section of the spectrum
+          // 2. The energy in the wave's assigned frequency band
+          // 3. The beat pulse
+          const bandAmplification = 1 + bandEnergy * BAND_INFLUENCE;
+          const targetAmplitude =
+            (WAVE_HEIGHT_BASE + energy * MAX_WAVE_HEIGHT) *
+            beatAmplification *
+            bandAmplification;
 
           // Smooth transition to target amplitude
           waveAmplitudes.current[i] = THREE.MathUtils.lerp(
@@ -316,24 +487,74 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
           );
 
           // Calculate wave parameters - each wave has different frequency and phase
-          const frequency = 0.5 + i * 0.2;
-          // Add movement based on time
-          const phase = i * (Math.PI / 4) + timeRef.current * (1 + i * 0.2);
+          // Let the frequency be influenced by the assigned frequency band
+          const baseFrequency = 0.5 + i * 0.2;
+          const frequencyMultiplier =
+            bandIndex === 2
+              ? 1 + high * 0.3 // High frequencies make waves more rippled
+              : bandIndex === 0
+              ? 1 - bass * 0.2 // Bass makes waves smoother
+              : 1; // Mid range stays neutral
+          const frequency = baseFrequency * frequencyMultiplier;
+
+          // Add movement based on time with flowing offset and individual wave variation
+          // Each wave now has its own flow speed and horizontal position
+          const phase =
+            i * (Math.PI / 4) +
+            timeRef.current * (1 + i * 0.2) +
+            waveFlowPositions.current[i] * (1 + i * 0.15) +
+            wavePhaseOffsets.current[i] * WAVE_VARIATION;
+
+          // Add subtle frequency variation over time, influenced by frequency band
+          const freqVariationAmplitude =
+            bandIndex === 2 ? 0.25 : bandIndex === 1 ? 0.15 : 0.1;
+          const frequencyModulation =
+            1 + Math.sin(timeRef.current * 0.2 + i) * freqVariationAmplitude;
+
+          // Apply horizontal offset
+          const horizontalOffset =
+            waveHorizontalOffsets.current[i] + i * HORIZONTAL_OFFSET;
+
+          // Calculate distortion based on frequency bands
+          // High frequencies create more distortion
+          const distortion =
+            bandIndex === 2
+              ? high * 0.8 // High frequencies create more distortion
+              : bandIndex === 1
+              ? mid * 0.3 // Mid range creates moderate distortion
+              : 0; // Bass stays clean
 
           // Update geometry with new parameters
           const newGeometry = createSineWaveGeometry(
-            frequency,
+            frequency * frequencyModulation,
             phase,
-            waveAmplitudes.current[i]
+            waveAmplitudes.current[i],
+            horizontalOffset,
+            distortion
           );
           // Access the geometry property of the line (Line object)
           (line as THREE.Line).geometry.dispose();
           (line as THREE.Line).geometry = newGeometry;
 
-          // Update material opacity based on energy
+          // Update material opacity based on energy and beat
           const material = materialInstances[i] as THREE.LineBasicMaterial;
-          // More energy = more opacity
-          const targetOpacity = 0.6 + energy * 0.4;
+          // More energy and beat pulse = more opacity (if above threshold)
+          const beatOpacityEffect = shouldApplyBeatEffects
+            ? beatPulseRef.current * 0.3
+            : 0;
+          // Band-specific opacity multiplier
+          const bandOpacityMultiplier =
+            bandIndex === 2
+              ? 1 + high * 0.2 // High frequencies are more visible
+              : bandIndex === 0
+              ? 1 + bass * 0.3 // Bass is more visible
+              : 1 + mid * 0.1; // Mid is slightly more visible
+
+          const targetOpacity =
+            (0.6 + energy * 0.4) *
+            (1 + beatOpacityEffect) *
+            bandOpacityMultiplier;
+
           material.opacity = THREE.MathUtils.lerp(
             material.opacity || 0,
             targetOpacity,
@@ -346,31 +567,77 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
             // Dispose old geometry
             tube.geometry.dispose();
 
-            // Create new curve based on the new sine wave
+            // Create new curve based on the new sine wave with distortion
             const newCurve = new THREE.CatmullRomCurve3(
               Array.from({ length: POINTS_PER_WAVE }).map((_, j) => {
                 const x =
                   -WAVE_WIDTH / 2 + (j * WAVE_WIDTH) / (POINTS_PER_WAVE - 1);
-                const y =
-                  Math.sin(frequency * x + phase) * waveAmplitudes.current[i];
+
+                // Apply the same distortion logic as in createSineWaveGeometry
+                let y =
+                  Math.sin(frequency * (x + horizontalOffset) + phase) *
+                  waveAmplitudes.current[i];
+
+                // Apply distortion to the wave
+                if (distortion > 0) {
+                  y +=
+                    Math.sin(
+                      frequency * 2 * (x + horizontalOffset) + phase * 1.5
+                    ) *
+                    waveAmplitudes.current[i] *
+                    0.3 *
+                    distortion;
+
+                  if (distortion > 0.5) {
+                    y +=
+                      (Math.random() - 0.5) *
+                      waveAmplitudes.current[i] *
+                      0.2 *
+                      (distortion - 0.5);
+                  }
+                }
+
                 return new THREE.Vector3(x, y, 0);
               })
             );
 
             // Create and assign new tube geometry with fade effect
+            const beatRadiusEffect = shouldApplyBeatEffects
+              ? beatPulseRef.current * 0.05
+              : 0;
+            // Band-specific radius
+            const bandRadiusMultiplier =
+              bandIndex === 2
+                ? 1 + high * 0.2 // High frequencies have thinner tubes
+                : bandIndex === 0
+                ? 1 + bass * 0.4 // Bass has thicker tubes
+                : 1 + mid * 0.2; // Mid has moderate tubes
+
             tube.geometry = createTubeGeometryWithFade(
               newCurve,
               POINTS_PER_WAVE,
-              0.05 + energy * 0.05 // Increase radius with energy
+              (0.05 + energy * 0.05 + beatRadiusEffect) * bandRadiusMultiplier
             );
 
             // Update glow opacity
             const glowMaterial = glowMaterialInstances[
               i
             ] as THREE.MeshBasicMaterial;
+            const beatGlowEffect = shouldApplyBeatEffects
+              ? beatPulseRef.current * 0.2
+              : 0;
+
+            // Band-specific glow
+            const bandGlowMultiplier =
+              bandIndex === 2
+                ? 1 + high * 0.4 // High frequencies have stronger glow
+                : bandIndex === 0
+                ? 1 + bass * 0.25 // Bass has moderate glow
+                : 1 + mid * 0.15; // Mid has subtle glow
+
             glowMaterial.opacity = THREE.MathUtils.lerp(
               glowMaterial.opacity || 0,
-              0.2 + energy * 0.3,
+              (0.2 + energy * 0.3 + beatGlowEffect) * bandGlowMultiplier,
               0.2
             );
           }
@@ -381,32 +648,72 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
     else {
       lineRefs.current.forEach((line, i) => {
         if (line) {
+          // Get the assigned frequency band for this wave (for consistent behavior)
+          const bandIndex = waveBandAssignments.current[i];
+
+          // Add beat pulse even when not playing (for visualizing beat)
+          const beatEffect = shouldApplyBeatEffects
+            ? beatPulseRef.current * 0.5
+            : 0;
+          const idleAmplitude = WAVE_HEIGHT_BASE * (1 + beatEffect);
+
           // Gradually return to base amplitude
           waveAmplitudes.current[i] = THREE.MathUtils.lerp(
             waveAmplitudes.current[i],
-            WAVE_HEIGHT_BASE,
+            idleAmplitude,
             0.05
           );
 
           // Keep some movement even when not playing
-          const frequency = 0.5 + i * 0.2;
-          const phase = timeRef.current * 0.2 + i * (Math.PI / 4);
+          const baseFrequency = 0.5 + i * 0.2;
+          const frequency =
+            baseFrequency *
+            (bandIndex === 2 ? 1.1 : bandIndex === 0 ? 0.9 : 1.0);
 
-          // Update geometry
+          // Add more flowing movement when idle
+          // Each wave now has its own flow speed and horizontal position
+          const phase =
+            timeRef.current * 0.2 +
+            i * (Math.PI / 4) +
+            waveFlowPositions.current[i] * 0.5 +
+            Math.sin(timeRef.current * 0.1 + i) * 0.5;
+
+          // Add subtle frequency variation based on band assignment for consistency
+          const freqVariationAmplitude =
+            bandIndex === 2 ? 0.15 : bandIndex === 1 ? 0.1 : 0.05;
+          const frequencyModulation =
+            1 +
+            Math.sin(timeRef.current * 0.15 + i * 0.7) * freqVariationAmplitude;
+
+          // Apply horizontal offset
+          const horizontalOffset =
+            waveHorizontalOffsets.current[i] + i * HORIZONTAL_OFFSET;
+
+          // Update geometry - no distortion when idle
           const newGeometry = createSineWaveGeometry(
-            frequency,
+            frequency * frequencyModulation,
             phase,
-            waveAmplitudes.current[i]
+            waveAmplitudes.current[i],
+            horizontalOffset,
+            0 // No distortion when idle
           );
           // Access the geometry property of the line (Line object)
           (line as THREE.Line).geometry.dispose();
           (line as THREE.Line).geometry = newGeometry;
 
-          // Fade out opacity
+          // Fade out opacity with beat pulse
           const material = materialInstances[i] as THREE.LineBasicMaterial;
+          const beatOpacityEffect = shouldApplyBeatEffects
+            ? beatPulseRef.current * 0.2
+            : 0;
+
+          // Keep consistent band-based opacity variations even when idle
+          const bandOpacityMultiplier =
+            bandIndex === 2 ? 1.1 : bandIndex === 0 ? 1.2 : 1.05;
+
           material.opacity = THREE.MathUtils.lerp(
             material.opacity || 0,
-            0.6,
+            (0.6 + beatOpacityEffect) * bandOpacityMultiplier,
             0.05
           );
 
@@ -416,31 +723,44 @@ const SinWaveVisualizer = ({ audioData }: VisualizerProps) => {
             // Dispose old geometry
             tube.geometry.dispose();
 
-            // Create new curve based on the new sine wave
+            // Create new curve based on the new sine wave - no distortion when idle
             const newCurve = new THREE.CatmullRomCurve3(
               Array.from({ length: POINTS_PER_WAVE }).map((_, j) => {
                 const x =
                   -WAVE_WIDTH / 2 + (j * WAVE_WIDTH) / (POINTS_PER_WAVE - 1);
                 const y =
-                  Math.sin(frequency * x + phase) * waveAmplitudes.current[i];
+                  Math.sin(frequency * (x + horizontalOffset) + phase) *
+                  waveAmplitudes.current[i];
                 return new THREE.Vector3(x, y, 0);
               })
             );
+
+            // Band-specific radius
+            const bandRadiusMultiplier =
+              bandIndex === 2 ? 0.9 : bandIndex === 0 ? 1.2 : 1.0;
 
             // Create and assign new tube geometry with fade effect
             tube.geometry = createTubeGeometryWithFade(
               newCurve,
               POINTS_PER_WAVE,
-              0.05 // Base radius
+              0.05 * bandRadiusMultiplier // Base radius varies by band
             );
 
-            // Update glow opacity
+            // Update glow opacity with beat pulse
             const glowMaterial = glowMaterialInstances[
               i
             ] as THREE.MeshBasicMaterial;
+            const beatGlowEffect = shouldApplyBeatEffects
+              ? beatPulseRef.current * 0.15
+              : 0;
+
+            // Keep consistent band-based glow variations even when idle
+            const bandGlowMultiplier =
+              bandIndex === 2 ? 1.15 : bandIndex === 0 ? 1.1 : 1.0;
+
             glowMaterial.opacity = THREE.MathUtils.lerp(
               glowMaterial.opacity || 0,
-              0.2,
+              (0.2 + beatGlowEffect) * bandGlowMultiplier,
               0.05
             );
           }

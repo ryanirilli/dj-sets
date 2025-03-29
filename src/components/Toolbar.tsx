@@ -13,10 +13,12 @@ import {
   FaTimes,
   FaChevronDown,
   FaSlidersH,
+  FaSync,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetClose } from "@/components/ui/custom-sheet";
+import { Vector3 } from "three";
 
 interface ToolbarProps {
   selectedVisualizer: VisualizerType;
@@ -53,7 +55,8 @@ export const Toolbar = ({
   } = useSceneContext();
 
   // Access settings context for persistent UI state
-  const { settings, toggleSectionOpen, updateSettings } = useSettings();
+  const { settings, toggleSectionOpen, updateSettings, updateCameraPosition } =
+    useSettings();
   const { openSections } = settings;
 
   const progressRef = useRef<HTMLDivElement>(null);
@@ -84,6 +87,14 @@ export const Toolbar = ({
     },
     [audioRef, duration]
   );
+
+  // Reset camera to default position
+  const resetCamera = useCallback(() => {
+    // Default camera position from SettingsContext default values
+    const defaultPosition = new Vector3(0, 2, 10);
+    const defaultTarget = new Vector3(0, 0, 0);
+    updateCameraPosition(defaultPosition, defaultTarget);
+  }, [updateCameraPosition]);
 
   // Use the toggleSectionOpen from settings context
   const handleSectionToggle = (sectionKey: string) => {
@@ -298,6 +309,18 @@ export const Toolbar = ({
                         }`}
                       >
                         <div className="flex flex-col space-y-4 pt-2 px-6">
+                          <div className="flex justify-start mb-2">
+                            <Button
+                              onClick={resetCamera}
+                              className="flex items-center justify-center gap-2 text-xs"
+                              variant="outline"
+                              size="sm"
+                            >
+                              <FaSync size={12} />
+                              Reset Camera Position
+                            </Button>
+                          </div>
+
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                               Auto-Rotate
