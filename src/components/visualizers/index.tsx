@@ -47,23 +47,23 @@ export const SinWaveVisualizer = dynamic(
 // Visualizer metadata for UI display
 export const visualizersInfo: VisualizerInfo[] = [
   {
-    id: "circular",
-    name: "Circular",
+    id: "unified",
+    name: "Unified",
     description: "Circular audio bars that react to music",
   },
   {
-    id: "smoke",
-    name: "Smoke",
+    id: "particular",
+    name: "Particular",
     description: "Smoke particles that react to music",
   },
   {
-    id: "icosahedron",
-    name: "Icosahedron",
+    id: "platonic",
+    name: "Platonic",
     description: "Audio-reactive icosahedron with wireframe gradient",
   },
   {
-    id: "sinwave",
-    name: "Sin Wave",
+    id: "wave",
+    name: "Wave",
     description: "Audio-reactive sine waves that create a vocal synth effect",
   },
 ];
@@ -77,5 +77,5 @@ export function getVisualizerInfo(
 
 // Function to get the default visualizer type
 export function getDefaultVisualizerType(): VisualizerType {
-  return "sinwave";
+  return "wave";
 }

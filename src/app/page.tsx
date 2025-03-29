@@ -92,9 +92,7 @@ function HomeContent() {
     console.log("[DEBUG] Initializing with visualizer type:", initialType);
 
     // If we don't have a valid type, force update to the default
-    if (
-      !["smoke", "circular", "icosahedron", "sinwave"].includes(initialType)
-    ) {
+    if (!["particular", "unified", "platonic", "wave"].includes(initialType)) {
       const defaultType = getDefaultVisualizerType();
       console.log("[DEBUG] Invalid initial type, using default:", defaultType);
       updateSettings("visualizerType", defaultType);
@@ -126,18 +124,18 @@ function HomeContent() {
     console.log("[DEBUG] Rendering visualizer for type:", activeVisualizerType);
 
     switch (activeVisualizerType) {
-      case "circular":
+      case "unified":
         return <AudioBars audioData={audioData} key="circular-visualizer" />;
-      case "smoke":
+      case "particular":
         return <SmokeVisualizer audioData={audioData} key="smoke-visualizer" />;
-      case "icosahedron":
+      case "platonic":
         return (
           <IcosahedronVisualizer
             audioData={audioData}
             key="icosahedron-visualizer"
           />
         );
-      case "sinwave":
+      case "wave":
         return (
           <SinWaveVisualizer audioData={audioData} key="sinwave-visualizer" />
         );
@@ -155,25 +153,25 @@ function HomeContent() {
 
         // Return the appropriate component based on default type
         switch (defaultType) {
-          case "circular":
+          case "unified":
             return <AudioBars audioData={audioData} key="default-circular" />;
-          case "smoke":
+          case "particular":
             return (
               <SmokeVisualizer audioData={audioData} key="default-smoke" />
             );
-          case "icosahedron":
+          case "platonic":
             return (
               <IcosahedronVisualizer
                 audioData={audioData}
                 key="default-icosahedron"
               />
             );
-          case "sinwave":
+          case "wave":
             return (
               <SinWaveVisualizer audioData={audioData} key="default-sinwave" />
             );
           default:
-            // Fallback to Smoke as absolute default
+            // Fallback to Particular as absolute default
             return (
               <SmokeVisualizer audioData={audioData} key="fallback-smoke" />
             );

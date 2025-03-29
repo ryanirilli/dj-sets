@@ -3,7 +3,7 @@ export interface VisualizerProps {
 }
 
 // Valid visualizer types
-export type VisualizerType = "smoke" | "circular" | "icosahedron" | "sinwave";
+export type VisualizerType = "particular" | "unified" | "platonic" | "wave";
 
 // Simple metadata about visualizers for UI display
 export interface VisualizerInfo {

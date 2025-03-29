@@ -148,7 +148,7 @@ function parseSettings(searchParams: URLSearchParams): Settings {
   // Create settings with explicit call to getDefaultVisualizerType
   const settings = {
     ...DEFAULT_SETTINGS,
-    visualizerType: "sinwave" as VisualizerType,
+    visualizerType: "wave" as VisualizerType,
   };
 
   // Visualizer
@@ -157,24 +157,21 @@ function parseSettings(searchParams: URLSearchParams): Settings {
     console.log("[DEBUG] URL visualizer param:", vTypeValue);
 
     // Validate that the value is a valid VisualizerType
-    const isValidType = [
-      "smoke",
-      "circular",
-      "icosahedron",
-      "sinwave",
-    ].includes(vTypeValue as string);
+    const isValidType = ["particular", "unified", "platonic", "wave"].includes(
+      vTypeValue as string
+    );
 
     if (isValidType) {
       settings.visualizerType = vTypeValue as VisualizerType;
       console.log("[DEBUG] Setting visualizer type to:", vTypeValue);
     } else {
       console.log("[DEBUG] Invalid visualizer type in URL:", vTypeValue);
-      console.log("[DEBUG] Using default visualizer:", "sinwave");
+      console.log("[DEBUG] Using default visualizer:", "wave");
     }
   } else {
     console.log(
       "[DEBUG] No visualizer type in URL, using explicit default:",
-      "sinwave"
+      "wave"
     );
   }
 
