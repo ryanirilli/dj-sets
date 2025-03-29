@@ -36,6 +36,14 @@ export const IcosahedronVisualizer = dynamic(
   }
 ) as React.ComponentType<VisualizerProps>;
 
+export const SinWaveVisualizer = dynamic(
+  () => import("@/components/visualizers/SinWaveVisualizer"),
+  {
+    ssr: false,
+    loading: () => <LoadingComponent />,
+  }
+) as React.ComponentType<VisualizerProps>;
+
 // Visualizer metadata for UI display
 export const visualizersInfo: VisualizerInfo[] = [
   {
@@ -53,6 +61,11 @@ export const visualizersInfo: VisualizerInfo[] = [
     name: "Icosahedron",
     description: "Audio-reactive icosahedron with wireframe gradient",
   },
+  {
+    id: "sinwave",
+    name: "Sin Wave",
+    description: "Audio-reactive sine waves that create a vocal synth effect",
+  },
 ];
 
 // A simple utility function to get visualizer info by ID
@@ -64,5 +77,5 @@ export function getVisualizerInfo(
 
 // Function to get the default visualizer type
 export function getDefaultVisualizerType(): VisualizerType {
-  return "icosahedron";
+  return "sinwave";
 }

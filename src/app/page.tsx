@@ -10,6 +10,7 @@ import {
   AudioBars,
   SmokeVisualizer,
   IcosahedronVisualizer,
+  SinWaveVisualizer,
   getDefaultVisualizerType,
   visualizersInfo,
 } from "@/components/visualizers";
@@ -91,7 +92,9 @@ function HomeContent() {
     console.log("[DEBUG] Initializing with visualizer type:", initialType);
 
     // If we don't have a valid type, force update to the default
-    if (!["smoke", "circular", "icosahedron"].includes(initialType)) {
+    if (
+      !["smoke", "circular", "icosahedron", "sinwave"].includes(initialType)
+    ) {
       const defaultType = getDefaultVisualizerType();
       console.log("[DEBUG] Invalid initial type, using default:", defaultType);
       updateSettings("visualizerType", defaultType);
@@ -134,6 +137,10 @@ function HomeContent() {
             key="icosahedron-visualizer"
           />
         );
+      case "sinwave":
+        return (
+          <SinWaveVisualizer audioData={audioData} key="sinwave-visualizer" />
+        );
       default:
         // If we get here, it means the activeVisualizerType is invalid
         console.log(
@@ -160,6 +167,10 @@ function HomeContent() {
                 audioData={audioData}
                 key="default-icosahedron"
               />
+            );
+          case "sinwave":
+            return (
+              <SinWaveVisualizer audioData={audioData} key="default-sinwave" />
             );
           default:
             // Fallback to Smoke as absolute default
