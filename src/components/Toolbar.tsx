@@ -110,38 +110,38 @@ export const Toolbar = ({
       {/* Main Container */}
       <div className="relative mx-auto max-w-3xl">
         {/* Bottom Menu Bar with Progress overlay */}
-        <div className="relative flex items-center justify-between p-3 bg-background/80 backdrop-blur-xl border border-border/50 pt-5 rounded-xl shadow-lg">
-          {/* Progress Bar - Now on top of the bottom bar */}
+        <div className="relative flex items-center justify-between py-3 bg-background/80 backdrop-blur-xl border border-border/50 pt-5 rounded-xl shadow-lg">
+          {/* Time and Duration Display - Floating above the toolbar */}
+          <div className="absolute -top-10 left-0 right-0 flex justify-between text-xs font-medium mx-2 z-10">
+            <span className="bg-background/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg">
+              {formatTime(currentTime)}
+            </span>
+            <span className="bg-background/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg">
+              {formatTime(duration)}
+            </span>
+          </div>
+
+          {/* Progress Bar - Now on top of the bottom bar and full bleed */}
           <div
-            className="absolute top-0 left-0 right-0 cursor-pointer px-1 pt-1"
+            className="absolute top-0 left-0 right-0 cursor-pointer"
             onClick={handleProgressClick}
             ref={progressRef}
           >
             <Progress
               value={progressPercentage}
-              className="h-1 rounded-full bg-muted/50"
+              className="h-1.5 rounded-none bg-muted/50"
             />
-          </div>
-
-          {/* Time and Duration Display - Floating on top of the toolbar */}
-          <div className="absolute -top-8 left-0 right-0 flex justify-between text-xs text-white font-medium py-1 mx-4">
-            <span className="bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md">
-              {formatTime(currentTime)}
-            </span>
-            <span className="bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md">
-              {formatTime(duration)}
-            </span>
           </div>
 
           {/* Empty space on the left for balance */}
           <div className="flex-1"></div>
 
-          {/* Play/Pause Button in center with next/prev controls */}
-          <div className="flex-1 flex justify-center items-center space-x-2">
+          {/* Play/Pause Button in center with next/prev controls, more spread out */}
+          <div className="flex-1 flex justify-center items-center space-x-6">
             <Button
               onClick={previousTrack}
               size="icon"
-              variant="outline"
+              variant="ghost"
               className="rounded-full w-8 h-8"
             >
               <FaStepBackward size={14} />
@@ -166,7 +166,7 @@ export const Toolbar = ({
             <Button
               onClick={nextTrack}
               size="icon"
-              variant="outline"
+              variant="ghost"
               className="rounded-full w-8 h-8"
             >
               <FaStepForward size={14} />
@@ -436,5 +436,3 @@ export const Toolbar = ({
     </div>
   );
 };
-
-export type { VisualizerType };
