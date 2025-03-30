@@ -101,7 +101,7 @@ const AmorphousVisualizer = ({ audioData }: VisualizerProps) => {
 
   // Create a deforming sphere
   useFrame((state, delta) => {
-    if (!meshRef.current || !onBeat) return;
+    if (!meshRef.current || !onBeat || avgAudioLevel < 25) return;
 
     const time = state.clock.getElapsedTime();
     timeRef.current = time;
@@ -110,7 +110,7 @@ const AmorphousVisualizer = ({ audioData }: VisualizerProps) => {
     analyzeFrequencyBands(audioData);
 
     // Handle beat detection and impact
-    if (isPlaying && onBeat && beatTime > lastBeatTimeRef.current) {
+    if (isPlaying && beatTime > lastBeatTimeRef.current) {
       lastBeatTimeRef.current = beatTime;
 
       if (avgAudioLevel > 25) {

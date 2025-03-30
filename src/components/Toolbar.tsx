@@ -106,27 +106,31 @@ export const Toolbar = ({
   };
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-50">
+    <div className="absolute bottom-0 left-0 right-0 z-50 px-4 pb-4">
       {/* Main Container */}
-      <div className="relative">
+      <div className="relative mx-auto max-w-3xl">
         {/* Bottom Menu Bar with Progress overlay */}
-        <div className="relative flex items-center justify-between p-3 bg-background/70 backdrop-blur-xl border-t border-border/50 pt-5">
+        <div className="relative flex items-center justify-between p-3 bg-background/80 backdrop-blur-xl border border-border/50 pt-5 rounded-xl shadow-lg">
           {/* Progress Bar - Now on top of the bottom bar */}
           <div
-            className="absolute top-0 left-0 right-0 cursor-pointer"
+            className="absolute top-0 left-0 right-0 cursor-pointer px-1 pt-1"
             onClick={handleProgressClick}
             ref={progressRef}
           >
             <Progress
               value={progressPercentage}
-              className="h-1 rounded-none bg-muted/50"
+              className="h-1 rounded-full bg-muted/50"
             />
           </div>
 
           {/* Time and Duration Display - Floating on top of the toolbar */}
-          <div className="absolute -top-8 left-0 right-0 flex justify-between text-xs text-white font-medium py-1 rounded-t-md mx-4">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
+          <div className="absolute -top-8 left-0 right-0 flex justify-between text-xs text-white font-medium py-1 mx-4">
+            <span className="bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md">
+              {formatTime(currentTime)}
+            </span>
+            <span className="bg-background/60 backdrop-blur-sm px-2 py-1 rounded-md">
+              {formatTime(duration)}
+            </span>
           </div>
 
           {/* Empty space on the left for balance */}
@@ -171,20 +175,28 @@ export const Toolbar = ({
 
           {/* Menu Toggle Button with Sheet */}
           <div className="flex-1 flex justify-end">
-            <Button onClick={() => setIsOpen(true)} variant="ghost">
+            <Button
+              onClick={() => setIsOpen(true)}
+              variant="ghost"
+              className="rounded-full"
+            >
               <FaSlidersH size={16} />
             </Button>
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetContent
                 side="right"
-                className="w-full max-w-md p-0 flex flex-col h-full bg-sidebar/80 backdrop-blur-md border-l border-border"
+                className="w-full max-w-md p-0 flex flex-col h-full bg-sidebar/80 backdrop-blur-md border-l border-border rounded-l-xl"
               >
                 <div className="p-4 flex justify-between items-center border-b border-border">
                   <h2 className="text-sidebar-foreground font-medium">
                     Settings
                   </h2>
                   <SheetClose asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-full"
+                    >
                       <FaTimes size={16} />
                     </Button>
                   </SheetClose>
@@ -198,7 +210,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("visualizers")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground hover:bg-background/10 rounded-lg border-b border-border/50"
                       >
                         Visualizers
                         <FaChevronDown
@@ -210,11 +222,11 @@ export const Toolbar = ({
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.visualizers
-                            ? "max-h-96 opacity-100 pb-4"
+                            ? "max-h-96 opacity-100 pb-4 mt-2"
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="flex flex-wrap gap-2 pt-2 px-6">
+                        <div className="flex flex-wrap gap-2 pt-2 px-6 bg-background/10 rounded-lg mx-2 p-3">
                           {visualizersInfo.map((visualizer) => (
                             <Button
                               key={visualizer.id}
@@ -224,6 +236,7 @@ export const Toolbar = ({
                                   : "secondary"
                               }
                               size="sm"
+                              className="rounded-full"
                               onClick={() => {
                                 console.log(
                                   "[DEBUG] Toolbar visualizer button clicked:",
@@ -249,7 +262,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("environment")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground hover:bg-background/10 rounded-lg border-b border-border/50"
                       >
                         Environment
                         <FaChevronDown
@@ -261,11 +274,11 @@ export const Toolbar = ({
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.environment
-                            ? "max-h-96 opacity-100 pb-4"
+                            ? "max-h-96 opacity-100 pb-4 mt-2"
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="pt-2 px-6">
+                        <div className="pt-2 px-2 bg-background/10 rounded-lg mx-2 p-3">
                           <EnvironmentSelector />
                         </div>
                       </div>
@@ -276,7 +289,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("colors")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground hover:bg-background/10 rounded-lg border-b border-border/50"
                       >
                         Color Palette
                         <FaChevronDown
@@ -288,11 +301,11 @@ export const Toolbar = ({
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.colors
-                            ? "max-h-[500px] opacity-100 pb-4"
+                            ? "max-h-[500px] opacity-100 pb-4 mt-2"
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="flex flex-col space-y-4 pt-2 px-6">
+                        <div className="flex flex-col space-y-4 pt-2 px-4 bg-background/10 rounded-lg mx-2 p-3">
                           <div className="flex items-center justify-between">
                             <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                               Auto-Cycle Colors
@@ -314,7 +327,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("camera")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground hover:bg-background/10 rounded-lg border-b border-border/50"
                       >
                         Camera Settings
                         <FaChevronDown
@@ -326,15 +339,15 @@ export const Toolbar = ({
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.camera
-                            ? "max-h-96 opacity-100 pb-4"
+                            ? "max-h-96 opacity-100 pb-4 mt-2"
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="flex flex-col space-y-4 pt-2 px-6">
+                        <div className="flex flex-col space-y-4 pt-2 px-4 bg-background/10 rounded-lg mx-2 p-3">
                           <div className="flex justify-start mb-2">
                             <Button
                               onClick={resetCamera}
-                              className="flex items-center justify-center gap-2 text-xs"
+                              className="flex items-center justify-center gap-2 text-xs rounded-full"
                               variant="outline"
                               size="sm"
                             >
@@ -381,7 +394,7 @@ export const Toolbar = ({
                       <Button
                         onClick={() => handleSectionToggle("audio")}
                         variant="ghost"
-                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground rounded-none hover:bg-transparent border-b border-border"
+                        className="w-full justify-between py-6 px-6 font-medium text-sidebar-foreground hover:bg-background/10 rounded-lg border-b border-border/50"
                       >
                         Audio
                         <FaChevronDown
@@ -393,11 +406,11 @@ export const Toolbar = ({
                       <div
                         className={`overflow-hidden transition-all duration-300 ${
                           openSections.audio
-                            ? "max-h-96 opacity-100 pb-4"
+                            ? "max-h-96 opacity-100 pb-4 mt-2"
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="pt-2 px-6">
+                        <div className="pt-2 px-2 bg-background/10 rounded-lg mx-2 p-3">
                           <AudioSelector
                             onSelect={(file) => {
                               console.log(
