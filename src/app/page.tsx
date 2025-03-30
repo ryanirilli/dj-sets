@@ -11,6 +11,7 @@ import {
   SmokeVisualizer,
   IcosahedronVisualizer,
   SinWaveVisualizer,
+  AmorphousVisualizer,
   getDefaultVisualizerType,
   visualizersInfo,
 } from "@/components/visualizers";
@@ -61,7 +62,11 @@ function HomeContent() {
     console.log("[DEBUG] Initializing with visualizer type:", initialType);
 
     // If we don't have a valid type, force update to the default
-    if (!["particular", "unified", "platonic", "wave"].includes(initialType)) {
+    if (
+      !["particular", "unified", "platonic", "wave", "amorphous"].includes(
+        initialType
+      )
+    ) {
       const defaultType = getDefaultVisualizerType();
       console.log("[DEBUG] Invalid initial type, using default:", defaultType);
       updateSettings("visualizerType", defaultType);
@@ -108,6 +113,13 @@ function HomeContent() {
         return (
           <SinWaveVisualizer audioData={audioData} key="sinwave-visualizer" />
         );
+      case "amorphous":
+        return (
+          <AmorphousVisualizer
+            audioData={audioData}
+            key="amorphous-visualizer"
+          />
+        );
       default:
         // If we get here, it means the activeVisualizerType is invalid
         console.log(
@@ -138,6 +150,13 @@ function HomeContent() {
           case "wave":
             return (
               <SinWaveVisualizer audioData={audioData} key="default-sinwave" />
+            );
+          case "amorphous":
+            return (
+              <AmorphousVisualizer
+                audioData={audioData}
+                key="default-amorphous"
+              />
             );
           default:
             // Fallback to Particular as absolute default

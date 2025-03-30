@@ -44,6 +44,14 @@ export const SinWaveVisualizer = dynamic(
   }
 ) as React.ComponentType<VisualizerProps>;
 
+export const AmorphousVisualizer = dynamic(
+  () => import("@/components/visualizers/AmorphousVisualizer"),
+  {
+    ssr: false,
+    loading: () => <LoadingComponent />,
+  }
+) as React.ComponentType<VisualizerProps>;
+
 // Visualizer metadata for UI display
 export const visualizersInfo: VisualizerInfo[] = [
   {
@@ -65,6 +73,11 @@ export const visualizersInfo: VisualizerInfo[] = [
     id: "wave",
     name: "Wave",
     description: "Audio-reactive sine waves that create a vocal synth effect",
+  },
+  {
+    id: "amorphous",
+    name: "Amorphous",
+    description: "NURBS sphere that deforms into an audio-reactive blob",
   },
 ];
 

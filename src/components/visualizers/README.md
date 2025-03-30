@@ -86,6 +86,28 @@ export {
 
 That's it! Your visualizer will now appear in the toolbar and can be selected by users.
 
+## Available Visualizers
+
+### AudioBars
+
+Circular audio bars that react to music, creating a unified circular spectrum analyzer.
+
+### SmokeVisualizer
+
+Smoke particles that react to music, using a particle system to create an atmospheric effect.
+
+### IcosahedronVisualizer
+
+Audio-reactive icosahedron with wireframe gradient, morphing with beats and audio intensity.
+
+### SinWaveVisualizer
+
+Audio-reactive sine waves that create a vocal synth effect, flowing with the music.
+
+### AmorphousVisualizer
+
+A sphere that deforms into an amorphous blob responding to audio data and beats. Different frequency bands affect different parts of the sphere, creating organic-looking deformations.
+
 ## How to Remove a Visualizer
 
 Removing a visualizer is just as easy:

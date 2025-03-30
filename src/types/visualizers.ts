@@ -3,7 +3,12 @@ export interface VisualizerProps {
 }
 
 // Valid visualizer types
-export type VisualizerType = "particular" | "unified" | "platonic" | "wave";
+export type VisualizerType =
+  | "particular"
+  | "unified"
+  | "platonic"
+  | "wave"
+  | "amorphous";
 
 // Simple metadata about visualizers for UI display
 export interface VisualizerInfo {
