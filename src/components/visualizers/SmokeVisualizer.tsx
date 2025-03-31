@@ -8,8 +8,8 @@ import { useColorPalette } from "@/hooks/useColorPalette";
 // Reduce particle count for mobile devices
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 const PARTICLE_COUNT = isMobile ? 200 : 500;
-const AVG_AUDIO_DATA_THRESHOLD = 25;
-const PARTICLE_LIFETIME = 0.5;
+const PARTICLE_LIFETIME = 3.0; // Increased from 0.5 to 3.0 seconds
+const FORCE_CLEANUP_INTERVAL = 30000; // 30 seconds between forced cleanups (increased from 10s)
 
 // Pre-initialized arrays with default values
 const ACTIVE_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
@@ -129,6 +129,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   const pointsRef = useRef<THREE.Points>(null);
   const activeParticlesRef = useRef(0);
   const requestIdRef = useRef<number>();
+  const lastCleanupRef = useRef<number>(Date.now());
+  const particleBudgetRef = useRef<number>(PARTICLE_COUNT * 0.95); // Increased from 0.8 to 0.95
 
   // Get gl context and canvas from R3F
   const { gl } = useThree();
@@ -299,21 +301,9 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       lastAudioAmplitudeRef.current = 0;
       frequencyBandsRef.current = [0, 0, 0];
 
-      // Reset all particles if the geometry exists
-      if (pointsRef.current) {
-        const geometry = pointsRef.current.geometry;
-        const activeAttr = geometry.getAttribute(
-          "aActive"
-        ) as THREE.BufferAttribute;
-
-        // Deactivate all particles
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-          activeAttr.setX(i, 0);
-        }
-
-        activeAttr.needsUpdate = true;
-        activeParticlesRef.current = 0;
-      }
+      // Do NOT reset all particles when track changes
+      // This allows particles to persist between track changes
+      console.log("Audio track changed - keeping existing particles");
     }
   }, [currentAudioFile, pointsRef]);
 
@@ -323,12 +313,15 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       // Reset beat detection when playback starts/resumes
       beatActiveRef.current = false;
       beatDecayRef.current = 0;
+      console.log("Playback started/resumed - keeping existing particles");
     } else {
       // Reset beat detection when playback stops
       beatActiveRef.current = false;
       beatDecayRef.current = 0;
 
-      // Deactivate all particles when audio stops
+      // Optionally clear particles when audio stops completely
+      // Uncomment this if you want particles to clear when audio stops
+      /*
       if (pointsRef.current) {
         const geometry = pointsRef.current.geometry;
         const activeAttr = geometry.getAttribute(
@@ -343,6 +336,8 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         activeAttr.needsUpdate = true;
         activeParticlesRef.current = 0;
       }
+      */
+      console.log("Playback stopped - keeping existing particles");
     }
   }, [isPlaying, pointsRef]);
 
@@ -674,10 +669,12 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
             attributes.rotation.setX(i, Math.random() * Math.PI * 2);
           }
 
-          const lifetime = PARTICLE_LIFETIME + Math.random();
+          // Longer lifetime with more variation
+          const lifetime = PARTICLE_LIFETIME + Math.random() * 2.0;
           attributes.lifetime!.setX(i, lifetime);
 
-          const fadeStart = 0.7 + Math.random() * 0.15;
+          // Adjust fade start to be later in the particle's life
+          const fadeStart = 0.8 + Math.random() * 0.15;
           const fadeLength = 0.15 + Math.random() * 0.15;
           attributes.fadeStart!.setX(i, fadeStart);
           attributes.fadeLength!.setX(i, fadeLength);
@@ -705,6 +702,64 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     activeParticlesRef.current += particlesActivated;
   };
 
+  // Forced cleanup function to prevent memory buildup
+  const forceCleanup = useCallback(() => {
+    if (!pointsRef.current) return;
+
+    const now = Date.now();
+    if (
+      now - lastCleanupRef.current < FORCE_CLEANUP_INTERVAL &&
+      activeParticlesRef.current < particleBudgetRef.current
+    )
+      return;
+
+    lastCleanupRef.current = now;
+
+    try {
+      const geometry = pointsRef.current.geometry;
+      const activeAttr = geometry.getAttribute(
+        "aActive"
+      ) as THREE.BufferAttribute;
+
+      if (activeAttr && activeParticlesRef.current > 0) {
+        const burstTimeAttr = geometry.getAttribute(
+          "aBurstTime"
+        ) as THREE.BufferAttribute;
+
+        // Collect active particles with their burst times
+        const activeParticles = [];
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          if (activeAttr.getX(i) > 0.5) {
+            activeParticles.push({
+              index: i,
+              burstTime: burstTimeAttr.getX(i),
+            });
+          }
+        }
+
+        // Sort by burst time (oldest first)
+        activeParticles.sort((a, b) => a.burstTime - b.burstTime);
+
+        // Deactivate only the oldest 25% instead of 50%
+        const deactivateCount = Math.ceil(activeParticles.length * 0.25);
+        for (let i = 0; i < deactivateCount; i++) {
+          if (i < activeParticles.length) {
+            const idx = activeParticles[i].index;
+            activeAttr.setX(idx, 0);
+          }
+        }
+
+        activeAttr.needsUpdate = true;
+        activeParticlesRef.current -= deactivateCount;
+
+        THREE.Cache.clear();
+        console.log(`Gentle cleanup: deactivated ${deactivateCount} particles`);
+      }
+    } catch (e) {
+      console.error("Error during forced cleanup:", e);
+    }
+  }, []);
+
   // Update animation and audio reactivity
   useFrame(({ clock }) => {
     if (!pointsRef.current || !ACTIVE_ARRAY || !audioData) return;
@@ -729,16 +784,18 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     const bands = analyzeFrequencyBands(audioData);
 
     // Use onBeat directly from AudioContext for beat detection
-    if (onBeat) {
+    // Fix conditional to not accidentally reset particles
+    const isNewBeat = onBeat && !beatActiveRef.current && avgAudioLevel > 0;
+
+    if (isNewBeat) {
+      console.log(
+        `New beat detected - active particles: ${activeParticlesRef.current}`
+      );
       beatActiveRef.current = true;
       beatDecayRef.current = 1.0; // Full beat intensity
 
       // Pulse the particle size on beat
-      if (
-        uniforms &&
-        uniforms.uSize &&
-        avgAudioLevel > AVG_AUDIO_DATA_THRESHOLD
-      ) {
+      if (uniforms && uniforms.uSize) {
         uniforms.uSize.value = 300;
         setTimeout(() => {
           if (uniforms && uniforms.uSize && uniforms.uSize.value > 200) {
@@ -748,9 +805,13 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       }
 
       emitParticleBurst(
-        Math.floor(150 + audioAmplitude * 200),
+        Math.floor(150 + avgAudioLevel * 200),
         currentTime,
         bands
+      );
+
+      console.log(
+        `After burst, active particles: ${activeParticlesRef.current}`
       );
     }
 
@@ -765,8 +826,9 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       }
     }
 
-    // Clean up old particles periodically
-    if (currentTime % 0.25 < 0.01) {
+    // Clean up old particles periodically - but only those that have exceeded their lifetime
+    if (currentTime % 1.0 < 0.01) {
+      // Reduced frequency from 0.25 to 1.0 second intervals
       const activeAttr = pointsRef.current.geometry.getAttribute(
         "aActive"
       ) as THREE.BufferAttribute;
@@ -782,7 +844,10 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
         // Check if particle is too old (more than its lifetime)
         if (activeAttr.getX(i) > 0.5) {
           const lifetime = lifetimeAttr.getX(i);
-          if (currentTime - burstTimeAttr.getX(i) > lifetime) {
+          const age = currentTime - burstTimeAttr.getX(i);
+
+          // Only deactivate if significantly past lifetime (add 50% buffer)
+          if (age > lifetime * 1.5) {
             activeAttr.setX(i, 0); // Deactivate old particle
           } else {
             activeCount++;
@@ -792,6 +857,11 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
 
       activeAttr.needsUpdate = true;
       activeParticlesRef.current = activeCount;
+    }
+
+    // Run forced cleanup only if we're approaching the particle limit
+    if (activeParticlesRef.current > particleBudgetRef.current * 0.95) {
+      forceCleanup();
     }
   });
 
