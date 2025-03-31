@@ -121,16 +121,13 @@ export const Toolbar = ({
             </span>
           </div>
 
-          {/* Progress Bar - Now on top of the bottom bar and full bleed */}
+          {/* Progress Bar - Now on top of the bottom bar with rounded top corners */}
           <div
-            className="absolute top-0 left-0 right-0 cursor-pointer"
+            className="absolute top-0 left-0 right-0 cursor-pointer rounded-t-sm bg-muted/50"
             onClick={handleProgressClick}
             ref={progressRef}
           >
-            <Progress
-              value={progressPercentage}
-              className="h-1.5 rounded-none bg-muted/50"
-            />
+            <Progress value={progressPercentage} className="h-1.5" />
           </div>
 
           {/* Empty space on the left for balance */}

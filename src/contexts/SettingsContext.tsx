@@ -157,9 +157,13 @@ function parseSettings(searchParams: URLSearchParams): Settings {
     console.log("[DEBUG] URL visualizer param:", vTypeValue);
 
     // Validate that the value is a valid VisualizerType
-    const isValidType = ["particular", "unified", "platonic", "wave"].includes(
-      vTypeValue as string
-    );
+    const isValidType = [
+      "particular",
+      "unified",
+      "platonic",
+      "wave",
+      "amorphous",
+    ].includes(vTypeValue as string);
 
     if (isValidType) {
       settings.visualizerType = vTypeValue as VisualizerType;
