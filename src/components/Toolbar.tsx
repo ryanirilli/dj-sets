@@ -110,13 +110,13 @@ export const Toolbar = ({
       {/* Main Container */}
       <div className="relative mx-auto max-w-3xl">
         {/* Bottom Menu Bar with Progress overlay */}
-        <div className="relative flex items-center justify-between py-3 bg-background/80 backdrop-blur-xl border border-border/50 pt-5 rounded-xl shadow-lg">
+        <div className="relative flex items-center justify-between py-3 bg-background/40 backdrop-blur-xl pt-5 rounded-xl">
           {/* Time and Duration Display - Floating above the toolbar */}
           <div className="absolute -top-10 left-0 right-0 flex justify-between text-xs font-medium mx-2 z-10">
-            <span className="bg-background/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg">
+            <span className="bg-background/40 backdrop-blur-md text-white px-4 py-2 rounded-full pointer-events-none">
               {formatTime(currentTime)}
             </span>
-            <span className="bg-background/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg">
+            <span className="bg-background/40 backdrop-blur-md text-white px-4 py-2 rounded-full pointer-events-none">
               {formatTime(duration)}
             </span>
           </div>
@@ -127,7 +127,10 @@ export const Toolbar = ({
             onClick={handleProgressClick}
             ref={progressRef}
           >
-            <Progress value={progressPercentage} className="h-1.5" />
+            <Progress
+              value={progressPercentage}
+              className="h-1.5 rounded-b-none"
+            />
           </div>
 
           {/* Empty space on the left for balance */}

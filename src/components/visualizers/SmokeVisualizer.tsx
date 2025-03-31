@@ -8,8 +8,8 @@ import { useColorPalette } from "@/hooks/useColorPalette";
 // Reduce particle count for mobile devices
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 const PARTICLE_COUNT = isMobile ? 200 : 500;
-const PARTICLE_LIFETIME = 3.0; // Increased from 0.5 to 3.0 seconds
-const FORCE_CLEANUP_INTERVAL = 30000; // 30 seconds between forced cleanups (increased from 10s)
+const PARTICLE_LIFETIME = 10.0; // Increased from 0.5 to 3.0 seconds
+const FORCE_CLEANUP_INTERVAL = 10000; // 30 seconds between forced cleanups (increased from 10s)
 
 // Pre-initialized arrays with default values
 const ACTIVE_ARRAY = new Float32Array(PARTICLE_COUNT).fill(0);
@@ -141,6 +141,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
   const beatActiveRef = useRef(false);
   const beatDecayRef = useRef(0);
   const beatDecayRateRef = useRef(0.05);
+  const initialBurstRef = useRef(false);
 
   // Create uniforms for the shader - removed texture uniform
   const uniforms = useMemo(
@@ -313,11 +314,15 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       // Reset beat detection when playback starts/resumes
       beatActiveRef.current = false;
       beatDecayRef.current = 0;
-      console.log("Playback started/resumed - keeping existing particles");
+      initialBurstRef.current = true; // Mark that we need to emit particles
+      console.log(
+        "Playback started/resumed - initial particles will be emitted"
+      );
     } else {
       // Reset beat detection when playback stops
       beatActiveRef.current = false;
       beatDecayRef.current = 0;
+      initialBurstRef.current = false;
 
       // Optionally clear particles when audio stops completely
       // Uncomment this if you want particles to clear when audio stops
@@ -339,7 +344,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
       */
       console.log("Playback stopped - keeping existing particles");
     }
-  }, [isPlaying, pointsRef]);
+  }, [isPlaying]);
 
   // Calculate average audio amplitude from frequency data
   const calculateAudioAmplitude = (audioData: Uint8Array): number => {
@@ -783,11 +788,22 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     // Analyze frequency bands - needed for particle colors and shader effects
     const bands = analyzeFrequencyBands(audioData);
 
+    // Check if we need to emit initial particles when playback starts
+    if (initialBurstRef.current && audioData) {
+      console.log("Emitting initial particles burst");
+      emitParticleBurst(
+        Math.floor(200 + avgAudioLevel * 150),
+        currentTime,
+        bands
+      );
+      initialBurstRef.current = false;
+    }
+
     // Use onBeat directly from AudioContext for beat detection
     // Fix conditional to not accidentally reset particles
     const isNewBeat = onBeat && !beatActiveRef.current && avgAudioLevel > 0;
 
-    if (isNewBeat) {
+    if (isNewBeat && avgAudioLevel > 25) {
       console.log(
         `New beat detected - active particles: ${activeParticlesRef.current}`
       );
