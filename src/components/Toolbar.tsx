@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetClose } from "@/components/ui/custom-sheet";
 import { Vector3 } from "three";
+import type { MediaDeviceInfo } from "../types/audio";
 
 interface ToolbarProps {
   selectedVisualizer: VisualizerType;
@@ -44,6 +45,11 @@ export const Toolbar = ({
     audioRef,
     previousTrack,
     nextTrack,
+    inputType,
+    setInputType,
+    availableInputs,
+    selectedInput,
+    setSelectedInput,
   } = useAudio();
 
   // Use scene context as a bridge to settings context
@@ -410,19 +416,66 @@ export const Toolbar = ({
                             : "max-h-0 opacity-0"
                         }`}
                       >
-                        <div className="pt-2 px-2 bg-background/10 rounded-lg mx-2 p-3">
-                          <AudioSelector
-                            onSelect={(file) => {
-                              console.log(
-                                "[DEBUG] Audio file selected in toolbar:",
-                                file
-                              );
-                              setAudioFile(file);
-                              // Also update the settings to persist the selection in URL
-                              updateSettings("selectedAudioFile", file);
-                            }}
-                            selectedFile={currentAudioFile}
-                          />
+                        <div className="pt-2 px-6 bg-background/10 rounded-lg">
+                          <div className="flex flex-col space-y-4">
+                            <div className="flex items-center justify-between">
+                              <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                System Audio Input
+                              </label>
+                              <Switch
+                                checked={inputType === "system"}
+                                onCheckedChange={(checked) =>
+                                  setInputType(checked ? "system" : "file")
+                                }
+                              />
+                            </div>
+
+                            {inputType === "file" ? (
+                              <AudioSelector
+                                onSelect={(file) => {
+                                  console.log(
+                                    "[DEBUG] Audio file selected in toolbar:",
+                                    file
+                                  );
+                                  setAudioFile(file);
+                                  // Also update the settings to persist the selection in URL
+                                  updateSettings("selectedAudioFile", file);
+                                }}
+                                selectedFile={currentAudioFile}
+                              />
+                            ) : (
+                              <div className="flex flex-col space-y-2">
+                                <select
+                                  className="w-full p-2 rounded-md bg-background/50 border border-border text-sm"
+                                  value={selectedInput?.deviceId || ""}
+                                  onChange={(e) => {
+                                    const device = availableInputs.find(
+                                      (d: MediaDeviceInfo) =>
+                                        d.deviceId === e.target.value
+                                    );
+                                    if (device) {
+                                      setSelectedInput(device);
+                                    }
+                                  }}
+                                >
+                                  {availableInputs.map(
+                                    (device: MediaDeviceInfo) => (
+                                      <option
+                                        key={device.deviceId}
+                                        value={device.deviceId}
+                                      >
+                                        {device.label ||
+                                          `Input ${device.deviceId.slice(
+                                            0,
+                                            5
+                                          )}`}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

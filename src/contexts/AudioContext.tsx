@@ -25,6 +25,11 @@ interface AudioContextType {
   nextTrack: () => void;
   previousTrack: () => void;
   loadingTracks: boolean;
+  inputType: "file" | "system";
+  setInputType: (type: "file" | "system") => void;
+  availableInputs: MediaDeviceInfo[];
+  selectedInput: MediaDeviceInfo | null;
+  setSelectedInput: (device: MediaDeviceInfo) => void;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
@@ -44,17 +49,25 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentAudioFile, setCurrentAudioFile] = useState<string | null>(null);
-  const [bpm, setBpm] = useState<number>(120); // Default BPM
+  const [bpm, setBpm] = useState<number>(120);
   const [onBeat, setOnBeat] = useState<boolean>(false);
   const [beatTime, setBeatTime] = useState<number>(0);
   const [avgAudioLevel, setAvgAudioLevel] = useState<number>(0);
   const [availableTracks, setAvailableTracks] = useState<string[]>([]);
   const [loadingTracks, setLoadingTracks] = useState(true);
+  const [inputType, setInputType] = useState<"file" | "system">("file");
+  const [availableInputs, setAvailableInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedInput, setSelectedInput] = useState<MediaDeviceInfo | null>(
+    null
+  );
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const sourceRef = useRef<
+    MediaElementAudioSourceNode | MediaStreamAudioSourceNode | null
+  >(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number>();
   const isSourceConnectedRef = useRef<boolean>(false);
 
@@ -760,6 +773,140 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     [handleTimeUpdate, handleDurationChange, updateAudioData]
   );
 
+  // Initialize audio input devices
+  useEffect(() => {
+    const initializeDevices = async () => {
+      try {
+        // First request permission to access audio devices
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        // Stop the stream immediately after getting permission
+        stream.getTracks().forEach((track) => track.stop());
+
+        // Then enumerate all devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(
+          (device) => device.kind === "audioinput"
+        );
+        setAvailableInputs(audioInputs);
+
+        // If no input is selected and we have inputs available, select the first one
+        if (!selectedInput && audioInputs.length > 0) {
+          setSelectedInput(audioInputs[0]);
+        }
+      } catch (error) {
+        console.error("Error initializing audio devices:", error);
+      }
+    };
+
+    initializeDevices();
+
+    // Listen for device changes
+    const handleDeviceChange = () => {
+      initializeDevices();
+    };
+
+    navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    return () => {
+      navigator.mediaDevices.removeEventListener(
+        "devicechange",
+        handleDeviceChange
+      );
+    };
+  }, [selectedInput]);
+
+  // Setup system audio input
+  const setupSystemAudio = useCallback(async () => {
+    if (!selectedInput) return;
+
+    try {
+      // Clean up any existing stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      // Get system audio with the selected device
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: selectedInput.deviceId,
+          // Add constraints for system audio capture
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+
+      streamRef.current = stream;
+
+      // Initialize audio context if needed
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 256;
+        analyserRef.current.smoothingTimeConstant = 0.8;
+      }
+
+      // Ensure audio context is running
+      if (audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
+
+      // Clean up previous source if it exists
+      if (sourceRef.current) {
+        sourceRef.current.disconnect();
+        sourceRef.current = null;
+      }
+
+      // Create and connect new source
+      if (audioContextRef.current && analyserRef.current) {
+        sourceRef.current =
+          audioContextRef.current.createMediaStreamSource(stream);
+        sourceRef.current.connect(analyserRef.current);
+        // Don't connect to destination to mute the audio
+        // analyserRef.current.connect(audioContextRef.current.destination);
+        isSourceConnectedRef.current = true;
+      }
+
+      // Set currentAudioFile to indicate system input
+      setCurrentAudioFile(`system:${selectedInput.deviceId}`);
+
+      // Start audio analysis
+      if (!animationFrameRef.current) {
+        updateAudioData();
+      }
+
+      setIsPlaying(true);
+    } catch (error) {
+      console.error("Error setting up system audio:", error);
+      setIsPlaying(false);
+    }
+  }, [selectedInput, updateAudioData]);
+
+  // Handle input type changes
+  useEffect(() => {
+    if (inputType === "system") {
+      setupSystemAudio();
+    } else {
+      // Clean up system audio resources
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (sourceRef.current) {
+        sourceRef.current.disconnect();
+        sourceRef.current = null;
+      }
+      isSourceConnectedRef.current = false;
+      setIsPlaying(false);
+      // Reset currentAudioFile when switching back to file mode
+      setCurrentAudioFile(null);
+    }
+  }, [inputType, setupSystemAudio]);
+
+  // Update the value object to include new properties
   const value = {
     audioData,
     isPlaying,
@@ -777,6 +924,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     nextTrack,
     previousTrack,
     loadingTracks,
+    inputType,
+    setInputType,
+    availableInputs,
+    selectedInput,
+    setSelectedInput,
   };
 
   return (
