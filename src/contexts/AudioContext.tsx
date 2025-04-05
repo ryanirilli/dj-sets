@@ -843,6 +843,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // Initialize audio context if needed
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).webkitAudioContext)();
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 256;
