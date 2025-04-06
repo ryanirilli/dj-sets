@@ -2,9 +2,12 @@
 import React, { useEffect, useState } from "react";
 import Logo from "./Logo";
 import { useColorPalette } from "@/hooks/useColorPalette";
+import { useFullScreen } from "@/contexts/FullScreenContext";
 
 const HeaderLogo: React.FC = () => {
   const { colors } = useColorPalette();
+  const { isFullScreen } = useFullScreen();
+
   const [currentColors, setCurrentColors] = useState({
     start: colors[0],
     end: colors[1],
@@ -24,7 +27,11 @@ const HeaderLogo: React.FC = () => {
   }, [colors]);
 
   return (
-    <div className="fixed top-4 left-4 md:top-8 md:left-16 z-50">
+    <div
+      className={`fixed top-4 left-4 md:top-8 md:left-16 z-50 ${
+        isFullScreen ? "hidden" : "block"
+      }`}
+    >
       <Logo
         width={75}
         height={93}

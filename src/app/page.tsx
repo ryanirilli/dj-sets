@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
-import { SceneProvider } from "@/contexts/SceneContext";
+import { SceneProvider, useSceneContext } from "@/contexts/SceneContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
+import { useFullScreen } from "@/contexts/FullScreenContext";
 import { Toolbar } from "@/components/Toolbar";
 import { VisualizerType, VALID_VISUALIZER_TYPES } from "@/types/visualizers";
 import {
@@ -16,6 +17,20 @@ import {
   visualizersInfo,
 } from "@/components/visualizers";
 import * as THREE from "three";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+
+// EditModeToggle component for the upper right corner
+const EditModeToggle = () => {
+  const { editMode, toggleEditMode } = useSceneContext();
+
+  return (
+    <div className="fixed top-4 right-4 z-50 flex items-center bg-background/40 backdrop-blur-xl px-3 py-2 rounded-full">
+      <span className="text-xs mr-2 text-white">Edit Mode</span>
+      <Switch checked={editMode} onCheckedChange={toggleEditMode} />
+    </div>
+  );
+};
 
 // Loading fallback component
 const VisualizerLoading = () => (
@@ -32,6 +47,7 @@ const VisualizerLoading = () => (
 function HomeContent() {
   const { audioData } = useAudio();
   const { settings, updateSettings } = useSettings();
+  const { isFullScreen, toggleFullScreen } = useFullScreen();
   const [activeVisualizerType, setActiveVisualizerType] =
     useState<VisualizerType>(settings.visualizerType);
 
@@ -171,11 +187,28 @@ function HomeContent() {
         </Suspense>
       }
     >
-      <Toolbar
-        selectedVisualizer={settings.visualizerType}
-        onVisualizerChange={handleVisualizerChange}
-        visualizersInfo={visualizersInfo}
-      />
+      <div className={isFullScreen ? "hidden" : "block"}>
+        <EditModeToggle />
+        <Toolbar
+          selectedVisualizer={settings.visualizerType}
+          onVisualizerChange={handleVisualizerChange}
+          visualizersInfo={visualizersInfo}
+          isFullScreen={isFullScreen}
+          toggleFullScreen={toggleFullScreen}
+        />
+      </div>
+
+      <div className={isFullScreen ? "block" : "hidden"}>
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            onClick={toggleFullScreen}
+            variant="outline"
+            className="bg-background/40 backdrop-blur-xl rounded-full"
+          >
+            Exit Full Screen
+          </Button>
+        </div>
+      </div>
     </SceneProvider>
   );
 }

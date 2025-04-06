@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import HeaderLogo from "@/components/HeaderLogo";
+import { FullScreenProvider } from "@/contexts/FullScreenContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,8 +24,10 @@ export default function RootLayout({
       <body
         className={`${inter.variable} antialiased h-full overflow-hidden bg-black text-white`}
       >
-        <HeaderLogo />
-        {children}
+        <FullScreenProvider>
+          <HeaderLogo />
+          {children}
+        </FullScreenProvider>
       </body>
     </html>
   );

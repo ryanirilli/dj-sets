@@ -16,6 +16,8 @@ import {
   FaSync,
   FaStepForward,
   FaStepBackward,
+  FaExpand,
+  FaCompress,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -27,12 +29,16 @@ interface ToolbarProps {
   selectedVisualizer: VisualizerType;
   onVisualizerChange: (type: VisualizerType) => void;
   visualizersInfo: VisualizerInfo[];
+  isFullScreen?: boolean;
+  toggleFullScreen?: () => void;
 }
 
 export const Toolbar = ({
   selectedVisualizer,
   onVisualizerChange,
   visualizersInfo,
+  isFullScreen = false,
+  toggleFullScreen,
 }: ToolbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const {
@@ -144,45 +150,55 @@ export const Toolbar = ({
           {/* Empty space on the left for balance */}
           <div className="flex-1"></div>
 
-          {/* Play/Pause Button in center with next/prev controls, more spread out */}
-          <div className="flex-1 flex justify-center items-center space-x-6">
+          {/* Center controls container with play/pause and previous/next */}
+          <div className="flex space-x-2 items-center px-4">
             <Button
               onClick={previousTrack}
-              size="icon"
               variant="ghost"
-              className="rounded-full w-8 h-8"
+              size="icon"
+              className="rounded-full"
+              disabled={!currentAudioFile}
             >
-              <FaStepBackward size={14} />
+              <FaStepBackward size={12} />
             </Button>
 
             <Button
-              onClick={() => {
-                console.log("Play button clicked");
-                togglePlayPause();
-              }}
+              onClick={togglePlayPause}
+              variant="ghost"
               size="icon"
-              variant="default"
-              className="w-12 h-12 rounded-full"
+              className="rounded-full h-12 w-12 flex items-center justify-center"
+              disabled={!currentAudioFile}
             >
-              {isPlaying ? (
-                <FaPause size={18} />
-              ) : (
-                <FaPlay size={18} className="ml-1" />
-              )}
+              {isPlaying ? <FaPause size={18} /> : <FaPlay size={18} />}
             </Button>
 
             <Button
               onClick={nextTrack}
-              size="icon"
               variant="ghost"
-              className="rounded-full w-8 h-8"
+              size="icon"
+              className="rounded-full"
+              disabled={!currentAudioFile}
             >
-              <FaStepForward size={14} />
+              <FaStepForward size={12} />
             </Button>
           </div>
 
-          {/* Menu Toggle Button with Sheet */}
-          <div className="flex-1 flex justify-end">
+          {/* Right side container with settings button */}
+          <div className="flex-1 flex justify-end space-x-2">
+            {toggleFullScreen && (
+              <Button
+                onClick={toggleFullScreen}
+                variant="ghost"
+                className="rounded-full"
+                title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+              >
+                {isFullScreen ? (
+                  <FaCompress size={16} />
+                ) : (
+                  <FaExpand size={16} />
+                )}
+              </Button>
+            )}
             <Button
               onClick={() => setIsOpen(true)}
               variant="ghost"
