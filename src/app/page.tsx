@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider, useSceneContext } from "@/contexts/SceneContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
@@ -18,7 +18,6 @@ import {
 } from "@/components/visualizers";
 import * as THREE from "three";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 
 // EditModeToggle component for the upper right corner
 const EditModeToggle = () => {
@@ -198,17 +197,18 @@ function HomeContent() {
         />
       </div>
 
-      <div className={isFullScreen ? "block" : "hidden"}>
-        <div className="fixed bottom-4 right-4 z-50">
-          <Button
-            onClick={toggleFullScreen}
-            variant="outline"
-            className="bg-background/40 backdrop-blur-xl rounded-full"
-          >
-            Exit Full Screen
-          </Button>
+      {/* ESC key indicator - only shown briefly when entering fullscreen */}
+      {isFullScreen && (
+        <div
+          className="fixed top-4 right-4 z-50 bg-background/40 backdrop-blur-xl px-3 py-2 rounded-full text-white text-xs opacity-80 animate-fadeOut"
+          style={{
+            animation: "fadeOut 2s forwards",
+            animationDelay: "3s",
+          }}
+        >
+          Press ESC to exit fullscreen
         </div>
-      </div>
+      )}
     </SceneProvider>
   );
 }

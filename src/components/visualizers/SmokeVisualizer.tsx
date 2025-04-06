@@ -803,7 +803,7 @@ const SmokeVisualizer = ({ audioData }: VisualizerProps) => {
     // Fix conditional to not accidentally reset particles
     const isNewBeat = onBeat && !beatActiveRef.current && avgAudioLevel > 0;
 
-    if (isNewBeat && avgAudioLevel > 25) {
+    if (isNewBeat && avgAudioLevel > 15) {
       console.log(
         `New beat detected - active particles: ${activeParticlesRef.current}`
       );

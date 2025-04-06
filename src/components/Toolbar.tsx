@@ -190,7 +190,11 @@ export const Toolbar = ({
                 onClick={toggleFullScreen}
                 variant="ghost"
                 className="rounded-full"
-                title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+                title={
+                  isFullScreen
+                    ? "Press ESC to exit"
+                    : "Enter Full Screen (ESC to exit)"
+                }
               >
                 {isFullScreen ? (
                   <FaCompress size={16} />
