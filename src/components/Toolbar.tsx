@@ -62,6 +62,8 @@ export const Toolbar = ({
     setAutoRotateColors,
     showPerformanceStats,
     togglePerformanceStats,
+    editMode,
+    toggleEditMode,
   } = useSceneContext();
 
   // Access settings context for persistent UI state
@@ -389,6 +391,16 @@ export const Toolbar = ({
                             <Switch
                               checked={showPerformanceStats}
                               onCheckedChange={togglePerformanceStats}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                              Edit Mode
+                            </label>
+                            <Switch
+                              checked={editMode}
+                              onCheckedChange={toggleEditMode}
                             />
                           </div>
                         </div>

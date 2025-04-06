@@ -37,6 +37,7 @@ interface Settings {
   backgroundIntensity: number;
   environmentTintStrength: number;
   showPerformanceStats: boolean;
+  editMode: boolean;
 
   // Camera position (orbit controls)
   cameraPosition: Vector3;
@@ -59,6 +60,7 @@ const DEFAULT_SETTINGS: Settings = {
   backgroundIntensity: 0.5,
   environmentTintStrength: 0.5,
   showPerformanceStats: false,
+  editMode: false,
   cameraPosition: new Vector3(0, 2, 10),
   cameraTarget: new Vector3(0, 0, 0),
   openSections: {
@@ -112,6 +114,7 @@ function serializeSettings(settings: Settings): URLSearchParams {
   params.set("grid", settings.showGrid.toString());
   params.set("arc", settings.autoRotateColors.toString());
   params.set("pal", settings.colorPaletteId);
+  params.set("edit", settings.editMode.toString());
 
   if (settings.environment) {
     params.set("env", settings.environment);
@@ -205,6 +208,10 @@ function parseSettings(searchParams: URLSearchParams): Settings {
 
   if (searchParams.has("pal")) {
     settings.colorPaletteId = searchParams.get("pal") as string;
+  }
+
+  if (searchParams.has("edit")) {
+    settings.editMode = searchParams.get("edit") === "true";
   }
 
   if (searchParams.has("env")) {

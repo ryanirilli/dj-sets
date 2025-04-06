@@ -48,6 +48,198 @@ interface SceneProviderProps {
   sceneContent?: ReactNode;
 }
 
+// Scene container that wraps the Canvas with edit mode functionality
+const SceneContainer = ({
+  children,
+  editMode,
+}: {
+  children: ReactNode;
+  editMode: boolean;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragMode, setDragMode] = useState<"move" | "scale">("move");
+  const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
+  const [startValues, setStartValues] = useState({ scale: 1, x: 0, y: 0 });
+
+  // Handle mouse down for dragging
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!editMode) return;
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      // Prevent the event from being captured by Three.js/Canvas
+      e.stopPropagation();
+      e.preventDefault();
+
+      // Check if we're near the edge
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const edgeThreshold = 20;
+
+      const isNearLeftEdge = x < edgeThreshold;
+      const isNearRightEdge = x > rect.width - edgeThreshold;
+      const isNearTopEdge = y < edgeThreshold;
+      const isNearBottomEdge = y > rect.height - edgeThreshold;
+      const isNearEdge =
+        isNearLeftEdge || isNearRightEdge || isNearTopEdge || isNearBottomEdge;
+
+      // Set drag mode and start state
+      const mode = isNearEdge ? "scale" : "move";
+      setDragMode(mode);
+      setIsDragging(true);
+      setDragStartPos({ x: e.clientX, y: e.clientY });
+      setStartValues({
+        scale,
+        x: position.x,
+        y: position.y,
+      });
+
+      // Log for debugging
+      console.log(`Starting ${mode} drag`);
+    },
+    [editMode, scale, position]
+  );
+
+  // Handle mouse move - simplified to reduce conflicts
+  const handleDrag = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!isDragging) return;
+
+      if (dragMode === "move") {
+        const dx = clientX - dragStartPos.x;
+        const dy = clientY - dragStartPos.y;
+
+        // Apply position change
+        setPosition({
+          x: startValues.x + dx,
+          y: startValues.y + dy,
+        });
+      } else if (dragMode === "scale") {
+        // Only use horizontal distance for scaling
+        const dx = clientX - dragStartPos.x;
+
+        // Simple scaling calculation
+        if (dx !== 0) {
+          // More direct scaling approach
+          const scaleFactor = Math.max(
+            0.2,
+            startValues.scale * (1 + dx * 0.01)
+          );
+          setScale(scaleFactor);
+          console.log(`Scaling to: ${scaleFactor}`);
+        }
+      }
+    },
+    [isDragging, dragMode, dragStartPos, startValues]
+  );
+
+  // Only add global event listeners when actually dragging
+  useEffect(() => {
+    if (!isDragging || !editMode) return;
+
+    // These functions need to be defined inside the effect to access the latest state
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      handleDrag(e.clientX, e.clientY);
+    };
+
+    const handleGlobalMouseUp = (e: MouseEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      console.log("Drag ended");
+    };
+
+    // Add capture event listeners to document
+    document.addEventListener("mousemove", handleGlobalMouseMove, {
+      capture: true,
+    });
+    document.addEventListener("mouseup", handleGlobalMouseUp, {
+      capture: true,
+    });
+
+    return () => {
+      document.removeEventListener("mousemove", handleGlobalMouseMove, {
+        capture: true,
+      });
+      document.removeEventListener("mouseup", handleGlobalMouseUp, {
+        capture: true,
+      });
+    };
+  }, [isDragging, editMode, handleDrag]);
+
+  // Update cursor based on mouse position
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!editMode || isDragging) return;
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const edgeThreshold = 20;
+
+      const isNearEdge =
+        x < edgeThreshold ||
+        x > rect.width - edgeThreshold ||
+        y < edgeThreshold ||
+        y > rect.height - edgeThreshold;
+
+      container.style.cursor = isNearEdge ? "nwse-resize" : "move";
+    },
+    [editMode, isDragging]
+  );
+
+  // Reset cursor when mouse leaves
+  const handleMouseLeave = useCallback(() => {
+    if (containerRef.current) {
+      containerRef.current.style.cursor = "auto";
+    }
+  }, []);
+
+  // Calculate size as percentage to maintain aspect ratio
+  const containerWidth = `${scale * 100}%`;
+  const containerHeight = `${scale * 100}%`;
+
+  // Calculate positioning to align with top-left corner by default
+  // When not moved, position should be top-left, not centered
+  const leftPos = position.x + "px";
+  const topPos = position.y + "px";
+
+  return (
+    <div
+      className="absolute w-full h-full overflow-hidden"
+      style={{ pointerEvents: editMode ? "auto" : "none" }}
+    >
+      <div
+        ref={containerRef}
+        className="absolute top-0 left-0 select-none origin-top-left"
+        style={{
+          width: containerWidth,
+          height: containerHeight,
+          transform: `translate(${leftPos}, ${topPos})`,
+          border: editMode ? "2px solid red" : "none",
+          overflow: "hidden",
+          transition: isDragging ? "none" : "all 0.1s ease-out",
+          touchAction: editMode ? "none" : "auto",
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className="w-full h-full">{children}</div>
+      </div>
+    </div>
+  );
+};
+
 // Custom lighting setup optimized for volumetric effects like smoke
 const SceneLighting = () => {
   const { colorPalette } = useSceneContext();
@@ -211,6 +403,8 @@ interface SceneContextType {
   togglePerformanceStats: () => void;
   stats: StatsData;
   setStats: (stats: StatsData) => void;
+  editMode: boolean;
+  toggleEditMode: () => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -236,6 +430,8 @@ const SceneContext = createContext<SceneContextType>({
   togglePerformanceStats: () => {},
   stats: { fps: 0, geometries: 0, textures: 0 },
   setStats: () => {},
+  editMode: false,
+  toggleEditMode: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -542,6 +738,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const backgroundIntensity = settings.backgroundIntensity;
   const environmentTintStrength = settings.environmentTintStrength;
   const showPerformanceStats = settings.showPerformanceStats;
+  const editMode = settings.editMode;
 
   // Debug auto-rotate state
   useEffect(() => {
@@ -607,6 +804,12 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const togglePerformanceStats = useCallback(() => {
     updateSettings("showPerformanceStats", !showPerformanceStats);
   }, [showPerformanceStats, updateSettings]);
+
+  // Function to toggle edit mode
+  const toggleEditMode = useCallback(() => {
+    updateSettings("editMode", !editMode);
+    console.log("Toggling edit mode to:", !editMode);
+  }, [editMode, updateSettings]);
 
   // Create a transitioning palette by interpolating between current and next
   const getTransitioningPalette = useCallback((): ColorPalette => {
@@ -743,7 +946,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     console.log("Scene content updated:", !!sceneContent);
   }, [sceneContent]);
 
-  // Add performance stats to context
+  // Add performance stats and edit mode to context
   const contextValue: SceneContextType = {
     autoRotate,
     setAutoRotate,
@@ -767,12 +970,14 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     togglePerformanceStats,
     stats,
     setStats,
+    editMode,
+    toggleEditMode,
   };
 
   return (
     <SceneContext.Provider value={contextValue}>
       <div className="absolute inset-0 flex flex-col w-full h-full">
-        <div className="relative flex-1 h-full">
+        <SceneContainer editMode={editMode}>
           <Canvas
             camera={{
               position: [0, 2, 10],
@@ -796,7 +1001,10 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               width: "100%",
               height: "100%",
               touchAction: "none",
+              display: "block",
             }}
+            // In edit mode, disable automatic resize functionality
+            resize={editMode ? { scroll: false, debounce: 0 } : undefined}
             dpr={[1, 2]} // Limit pixel ratio for better performance on high-DPI displays
           >
             {/* Set background color based on environment selection */}
@@ -825,30 +1033,32 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
             {/* Force render component to ensure animations run */}
             <ForceRender />
 
-            {/* Controls */}
-            <OrbitControls
-              makeDefault
-              minDistance={3}
-              maxDistance={50}
-              minPolarAngle={Math.PI / 6}
-              maxPolarAngle={Math.PI * 0.6}
-              autoRotate={autoRotate}
-              autoRotateSpeed={0.5}
-              target={[0, 0, 0]}
-              enableDamping={true}
-              dampingFactor={0.05}
-              enableZoom={true}
-              enablePan={true}
-              enableRotate={true}
-              // Add responsive controls
-              rotateSpeed={0.5}
-              zoomSpeed={0.5}
-              panSpeed={0.5}
-              screenSpacePanning={true}
-            />
+            {/* Controls - disabled in edit mode */}
+            {!editMode && (
+              <OrbitControls
+                makeDefault
+                minDistance={3}
+                maxDistance={50}
+                minPolarAngle={Math.PI / 6}
+                maxPolarAngle={Math.PI * 0.6}
+                autoRotate={autoRotate}
+                autoRotateSpeed={0.5}
+                target={[0, 0, 0]}
+                enableDamping={true}
+                dampingFactor={0.05}
+                enableZoom={true}
+                enablePan={true}
+                enableRotate={true}
+                // Add responsive controls
+                rotateSpeed={0.5}
+                zoomSpeed={0.5}
+                panSpeed={0.5}
+                screenSpacePanning={true}
+              />
+            )}
 
-            {/* Add the auto-rotate manager to ensure the controls are updated */}
-            <AutoRotateManager autoRotate={autoRotate} />
+            {/* Auto-rotate manager - only when not in edit mode */}
+            {!editMode && <AutoRotateManager autoRotate={autoRotate} />}
 
             {/* Add camera position manager for URL persistence */}
             <CameraPositionManager />
@@ -875,7 +1085,7 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
               textures={stats.textures}
             />
           )}
-        </div>
+        </SceneContainer>
         {children}
       </div>
     </SceneContext.Provider>
