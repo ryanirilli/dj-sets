@@ -57,12 +57,27 @@ const SceneContainer = ({
   editMode: boolean;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [size, setSize] = useState({ width: 100, height: 100 }); // Size in percentage
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState<"move" | "scale">("move");
+  const [dragMode, setDragMode] = useState<
+    | "move"
+    | "resize-n"
+    | "resize-e"
+    | "resize-s"
+    | "resize-w"
+    | "resize-ne"
+    | "resize-se"
+    | "resize-sw"
+    | "resize-nw"
+  >("move");
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
-  const [startValues, setStartValues] = useState({ scale: 1, x: 0, y: 0 });
+  const [startValues, setStartValues] = useState({
+    width: 100,
+    height: 100,
+    x: 0,
+    y: 0,
+  });
 
   // Handle mouse down for dragging
   const handleMouseDown = useCallback(
@@ -76,26 +91,37 @@ const SceneContainer = ({
       e.stopPropagation();
       e.preventDefault();
 
-      // Check if we're near the edge
+      // Check which edge/corner is being dragged
       const rect = container.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       const edgeThreshold = 20;
 
-      const isNearLeftEdge = x < edgeThreshold;
-      const isNearRightEdge = x > rect.width - edgeThreshold;
-      const isNearTopEdge = y < edgeThreshold;
-      const isNearBottomEdge = y > rect.height - edgeThreshold;
-      const isNearEdge =
-        isNearLeftEdge || isNearRightEdge || isNearTopEdge || isNearBottomEdge;
+      // Check each edge and corner
+      const isNearLeft = x < edgeThreshold;
+      const isNearRight = x > rect.width - edgeThreshold;
+      const isNearTop = y < edgeThreshold;
+      const isNearBottom = y > rect.height - edgeThreshold;
 
-      // Set drag mode and start state
-      const mode = isNearEdge ? "scale" : "move";
+      let mode: typeof dragMode = "move";
+
+      // Set resize mode based on which edges are near
+      if (isNearTop && isNearLeft) mode = "resize-nw";
+      else if (isNearTop && isNearRight) mode = "resize-ne";
+      else if (isNearBottom && isNearLeft) mode = "resize-sw";
+      else if (isNearBottom && isNearRight) mode = "resize-se";
+      else if (isNearTop) mode = "resize-n";
+      else if (isNearRight) mode = "resize-e";
+      else if (isNearBottom) mode = "resize-s";
+      else if (isNearLeft) mode = "resize-w";
+      else mode = "move";
+
       setDragMode(mode);
       setIsDragging(true);
       setDragStartPos({ x: e.clientX, y: e.clientY });
       setStartValues({
-        scale,
+        width: size.width,
+        height: size.height,
         x: position.x,
         y: position.y,
       });
@@ -103,40 +129,98 @@ const SceneContainer = ({
       // Log for debugging
       console.log(`Starting ${mode} drag`);
     },
-    [editMode, scale, position]
+    [editMode, size, position]
   );
 
-  // Handle mouse move - simplified to reduce conflicts
+  // Handle dragging with independent edge resizing
   const handleDrag = useCallback(
     (clientX: number, clientY: number) => {
       if (!isDragging) return;
 
-      if (dragMode === "move") {
-        const dx = clientX - dragStartPos.x;
-        const dy = clientY - dragStartPos.y;
+      const dx = clientX - dragStartPos.x;
+      const dy = clientY - dragStartPos.y;
 
-        // Apply position change
+      if (dragMode === "move") {
+        // Simple movement
         setPosition({
           x: startValues.x + dx,
           y: startValues.y + dy,
         });
-      } else if (dragMode === "scale") {
-        // Only use horizontal distance for scaling
-        const dx = clientX - dragStartPos.x;
+      } else {
+        // Resize based on which edge/corner is being dragged
+        const containerRect = containerRef.current?.getBoundingClientRect();
+        if (!containerRect) return;
 
-        // Simple scaling calculation
-        if (dx !== 0) {
-          // More direct scaling approach
-          const scaleFactor = Math.max(
-            0.2,
-            startValues.scale * (1 + dx * 0.01)
-          );
-          setScale(scaleFactor);
-          console.log(`Scaling to: ${scaleFactor}`);
+        // Calculate percentage changes (dx/dy as percentage of container)
+        const parentWidth = containerRect.width / (size.width / 100);
+        const parentHeight = containerRect.height / (size.height / 100);
+
+        const dxPercent = (dx / parentWidth) * 100;
+        const dyPercent = (dy / parentHeight) * 100;
+
+        let newWidth = startValues.width;
+        let newHeight = startValues.height;
+        let newX = startValues.x;
+        let newY = startValues.y;
+
+        // Apply changes based on the drag mode
+        switch (dragMode) {
+          case "resize-e":
+            // Right edge - just change width
+            newWidth = Math.max(20, startValues.width + dxPercent);
+            break;
+          case "resize-w":
+            // Left edge - change width and adjust position to keep right edge fixed
+            const widthChange = dxPercent;
+            newWidth = Math.max(20, startValues.width - widthChange);
+
+            // Adjust x position to keep right edge fixed
+            // We need to move x by dx in pixels, not as a percentage
+            newX = startValues.x + dx;
+            break;
+          case "resize-s":
+            // Bottom edge - just change height
+            newHeight = Math.max(20, startValues.height + dyPercent);
+            break;
+          case "resize-n":
+            // Top edge - change height and adjust position to keep bottom edge fixed
+            const heightChange = dyPercent;
+            newHeight = Math.max(20, startValues.height - heightChange);
+
+            // Adjust y position to keep bottom edge fixed
+            newY = startValues.y + dy;
+            break;
+          case "resize-ne":
+            // Top-right corner
+            newWidth = Math.max(20, startValues.width + dxPercent);
+            newHeight = Math.max(20, startValues.height - dyPercent);
+            newY = startValues.y + dy;
+            break;
+          case "resize-se":
+            // Bottom-right corner
+            newWidth = Math.max(20, startValues.width + dxPercent);
+            newHeight = Math.max(20, startValues.height + dyPercent);
+            break;
+          case "resize-sw":
+            // Bottom-left corner
+            newWidth = Math.max(20, startValues.width - dxPercent);
+            newHeight = Math.max(20, startValues.height + dyPercent);
+            newX = startValues.x + dx;
+            break;
+          case "resize-nw":
+            // Top-left corner
+            newWidth = Math.max(20, startValues.width - dxPercent);
+            newHeight = Math.max(20, startValues.height - dyPercent);
+            newX = startValues.x + dx;
+            newY = startValues.y + dy;
+            break;
         }
+
+        setSize({ width: newWidth, height: newHeight });
+        setPosition({ x: newX, y: newY });
       }
     },
-    [isDragging, dragMode, dragStartPos, startValues]
+    [isDragging, dragMode, dragStartPos, startValues, size.width, size.height]
   );
 
   // Only add global event listeners when actually dragging
@@ -186,13 +270,26 @@ const SceneContainer = ({
       const y = e.clientY - rect.top;
       const edgeThreshold = 20;
 
-      const isNearEdge =
-        x < edgeThreshold ||
-        x > rect.width - edgeThreshold ||
-        y < edgeThreshold ||
-        y > rect.height - edgeThreshold;
+      // Determine cursor based on position
+      const isNearLeft = x < edgeThreshold;
+      const isNearRight = x > rect.width - edgeThreshold;
+      const isNearTop = y < edgeThreshold;
+      const isNearBottom = y > rect.height - edgeThreshold;
 
-      container.style.cursor = isNearEdge ? "nwse-resize" : "move";
+      let cursor = "move";
+
+      // Set cursor based on which edges are near
+      if (isNearTop && isNearLeft) cursor = "nw-resize";
+      else if (isNearTop && isNearRight) cursor = "ne-resize";
+      else if (isNearBottom && isNearLeft) cursor = "sw-resize";
+      else if (isNearBottom && isNearRight) cursor = "se-resize";
+      else if (isNearTop) cursor = "n-resize";
+      else if (isNearRight) cursor = "e-resize";
+      else if (isNearBottom) cursor = "s-resize";
+      else if (isNearLeft) cursor = "w-resize";
+      else cursor = "move";
+
+      container.style.cursor = cursor;
     },
     [editMode, isDragging]
   );
@@ -204,14 +301,9 @@ const SceneContainer = ({
     }
   }, []);
 
-  // Calculate size as percentage to maintain aspect ratio
-  const containerWidth = `${scale * 100}%`;
-  const containerHeight = `${scale * 100}%`;
-
-  // Calculate positioning to align with top-left corner by default
-  // When not moved, position should be top-left, not centered
-  const leftPos = position.x + "px";
-  const topPos = position.y + "px";
+  // Get actual size and position styles
+  const containerWidth = `${size.width}%`;
+  const containerHeight = `${size.height}%`;
 
   return (
     <div
@@ -224,7 +316,7 @@ const SceneContainer = ({
         style={{
           width: containerWidth,
           height: containerHeight,
-          transform: `translate(${leftPos}, ${topPos})`,
+          transform: `translate(${position.x}px, ${position.y}px)`,
           border: editMode ? "2px solid red" : "none",
           overflow: "hidden",
           transition: isDragging ? "none" : "all 0.1s ease-out",
