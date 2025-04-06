@@ -847,7 +847,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           (window as any).webkitAudioContext)();
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 256;
-        analyserRef.current.smoothingTimeConstant = 0.8;
+        analyserRef.current.smoothingTimeConstant = 0.3;
       }
 
       // Ensure audio context is running
@@ -941,6 +941,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         onDurationChange={handleDurationChange}
         onEnded={() => setIsPlaying(false)}
         preload="metadata"
+        muted={inputType === "system"}
       />
       {children}
     </AudioContext.Provider>

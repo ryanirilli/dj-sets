@@ -5,7 +5,7 @@ import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider } from "@/contexts/SceneContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { Toolbar } from "@/components/Toolbar";
-import { VisualizerType } from "@/types/visualizers";
+import { VisualizerType, VALID_VISUALIZER_TYPES } from "@/types/visualizers";
 import {
   AudioBars,
   SmokeVisualizer,
@@ -62,11 +62,7 @@ function HomeContent() {
     console.log("[DEBUG] Initializing with visualizer type:", initialType);
 
     // If we don't have a valid type, force update to the default
-    if (
-      !["particular", "unified", "platonic", "wave", "amorphous"].includes(
-        initialType
-      )
-    ) {
+    if (!VALID_VISUALIZER_TYPES.includes(initialType)) {
       const defaultType = getDefaultVisualizerType();
       console.log("[DEBUG] Invalid initial type, using default:", defaultType);
       updateSettings("visualizerType", defaultType);
