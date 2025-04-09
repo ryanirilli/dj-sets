@@ -8,6 +8,22 @@ import {
 } from "react";
 import { useSettings } from "./SettingsContext";
 
+// Add type declaration for Electron properties on window
+declare global {
+  interface Window {
+    electron?: {
+      isElectron: boolean;
+      getSystemAudioSources: () => Promise<MediaDeviceInfo[]>;
+      getDisplayMedia: () => Promise<MediaStream | null>;
+    };
+  }
+}
+
+const isElectron =
+  typeof window !== "undefined" &&
+  window.electron &&
+  window.electron.isElectron === true;
+
 interface AudioContextType {
   audioData: Uint8Array | null;
   isPlaying: boolean;
@@ -827,18 +843,44 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         streamRef.current = null;
       }
 
-      // Get system audio with the selected device
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: selectedInput.deviceId,
-          // Add constraints for system audio capture
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      // For system: protocol devices in Electron
+      if (isElectron && selectedInput.deviceId.startsWith("system:")) {
+        console.log(
+          "Using Electron system audio mode for:",
+          selectedInput.deviceId
+        );
 
-      streamRef.current = stream;
+        // Get system audio with the selected device - handled by Electron preload
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: selectedInput.deviceId,
+            // Add constraints for system audio capture
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
+
+        streamRef.current = stream;
+      } else {
+        // Regular device or browser environment - use standard approach
+        console.log(
+          "Using standard audio input mode for:",
+          selectedInput.deviceId
+        );
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: selectedInput.deviceId,
+            // Add constraints for system audio capture
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
+
+        streamRef.current = stream;
+      }
 
       // Initialize audio context if needed
       if (!audioContextRef.current) {
@@ -862,9 +904,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Create and connect new source
-      if (audioContextRef.current && analyserRef.current) {
-        sourceRef.current =
-          audioContextRef.current.createMediaStreamSource(stream);
+      if (audioContextRef.current && analyserRef.current && streamRef.current) {
+        sourceRef.current = audioContextRef.current.createMediaStreamSource(
+          streamRef.current
+        );
         sourceRef.current.connect(analyserRef.current);
         // Don't connect to destination to mute the audio
         // analyserRef.current.connect(audioContextRef.current.destination);
