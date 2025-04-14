@@ -114,7 +114,6 @@ function serializeSettings(settings: Settings): URLSearchParams {
   params.set("grid", settings.showGrid.toString());
   params.set("arc", settings.autoRotateColors.toString());
   params.set("pal", settings.colorPaletteId);
-  params.set("edit", settings.editMode.toString());
 
   if (settings.environment) {
     params.set("env", settings.environment);
@@ -210,10 +209,6 @@ function parseSettings(searchParams: URLSearchParams): Settings {
     settings.colorPaletteId = searchParams.get("pal") as string;
   }
 
-  if (searchParams.has("edit")) {
-    settings.editMode = searchParams.get("edit") === "true";
-  }
-
   if (searchParams.has("env")) {
     settings.environment = searchParams.get("env");
   }
@@ -280,6 +275,9 @@ function parseSettings(searchParams: URLSearchParams): Settings {
 
     settings.openSections = openSections;
   }
+
+  // Ensure editMode defaults to false when loading from URL
+  settings.editMode = false;
 
   return settings;
 }

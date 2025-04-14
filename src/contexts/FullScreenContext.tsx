@@ -37,26 +37,6 @@ export const FullScreenProvider = ({ children }: FullScreenProviderProps) => {
   const toggleFullScreen = () => {
     const newValue = !isFullScreen;
     setIsFullScreen(newValue);
-
-    if (newValue) {
-      // Enter browser fullscreen mode
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch((err) => {
-          console.error(
-            `Error attempting to enable full-screen mode: ${err.message}`
-          );
-        });
-      }
-    } else {
-      // Exit browser fullscreen mode
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch((err) => {
-          console.error(
-            `Error attempting to exit full-screen mode: ${err.message}`
-          );
-        });
-      }
-    }
   };
 
   // Handle ESC key to exit fullscreen

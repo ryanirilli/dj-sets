@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useAudio } from "@/contexts/AudioContext";
 import { useSceneContext } from "@/contexts/SceneContext";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetClose } from "@/components/ui/custom-sheet";
 import { Vector3 } from "three";
 import type { MediaDeviceInfo } from "../types/audio";
+import { useIsElectron } from "../../hooks/useIsElectron";
 
 interface ToolbarProps {
   selectedVisualizer: VisualizerType;
@@ -51,12 +52,21 @@ export const Toolbar = ({
     audioRef,
     previousTrack,
     nextTrack,
-    inputType,
     setInputType,
     availableInputs,
     selectedInput,
     setSelectedInput,
   } = useAudio();
+  const isElectron = useIsElectron();
+
+  // Automatically set input type based on environment
+  useEffect(() => {
+    if (isElectron) {
+      setInputType("system");
+    } else {
+      setInputType("file");
+    }
+  }, [isElectron, setInputType]);
 
   // Use scene context as a bridge to settings context
   const {
@@ -414,15 +424,18 @@ export const Toolbar = ({
                             />
                           </div>
 
-                          <div className="flex items-center justify-between">
-                            <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                              Edit Mode
-                            </label>
-                            <Switch
-                              checked={editMode}
-                              onCheckedChange={toggleEditMode}
-                            />
-                          </div>
+                          {/* Conditionally render Edit Mode toggle */}
+                          {isElectron && (
+                            <div className="flex items-center justify-between">
+                              <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                Edit Mode
+                              </label>
+                              <Switch
+                                checked={editMode}
+                                onCheckedChange={toggleEditMode}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -450,19 +463,8 @@ export const Toolbar = ({
                       >
                         <div className="pt-2 px-6 bg-background/10 rounded-lg">
                           <div className="flex flex-col space-y-4">
-                            <div className="flex items-center justify-between">
-                              <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                System Audio Input
-                              </label>
-                              <Switch
-                                checked={inputType === "system"}
-                                onCheckedChange={(checked) =>
-                                  setInputType(checked ? "system" : "file")
-                                }
-                              />
-                            </div>
-
-                            {inputType === "file" ? (
+                            {/* Show file selector ONLY if NOT in Electron */}
+                            {!isElectron && (
                               <AudioSelector
                                 onSelect={(file) => {
                                   console.log(
@@ -475,8 +477,14 @@ export const Toolbar = ({
                                 }}
                                 selectedFile={currentAudioFile}
                               />
-                            ) : (
+                            )}
+
+                            {/* Show system input selector ONLY if IN Electron */}
+                            {isElectron && (
                               <div className="flex flex-col space-y-2">
+                                <label className="text-sm font-medium leading-none text-sidebar-foreground">
+                                  System Audio Input Device
+                                </label>
                                 <select
                                   className="w-full p-2 rounded-md bg-background/50 border border-border text-sm"
                                   value={selectedInput?.deviceId || ""}
@@ -490,19 +498,25 @@ export const Toolbar = ({
                                     }
                                   }}
                                 >
-                                  {availableInputs.map(
-                                    (device: MediaDeviceInfo) => (
-                                      <option
-                                        key={device.deviceId}
-                                        value={device.deviceId}
-                                      >
-                                        {device.label ||
-                                          `Input ${device.deviceId.slice(
-                                            0,
-                                            5
-                                          )}`}
-                                      </option>
+                                  {availableInputs.length > 0 ? (
+                                    availableInputs.map(
+                                      (device: MediaDeviceInfo) => (
+                                        <option
+                                          key={device.deviceId}
+                                          value={device.deviceId}
+                                        >
+                                          {device.label ||
+                                            `Input ${device.deviceId.slice(
+                                              0,
+                                              5
+                                            )}`}
+                                        </option>
+                                      )
                                     )
+                                  ) : (
+                                    <option disabled>
+                                      No input devices found
+                                    </option>
                                   )}
                                 </select>
                               </div>

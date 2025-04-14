@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
-import { SceneProvider, useSceneContext } from "@/contexts/SceneContext";
+import { SceneProvider } from "@/contexts/SceneContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { useFullScreen } from "@/contexts/FullScreenContext";
 import { Toolbar } from "@/components/Toolbar";
@@ -17,19 +17,6 @@ import {
   visualizersInfo,
 } from "@/components/visualizers";
 import * as THREE from "three";
-import { Switch } from "@/components/ui/switch";
-
-// EditModeToggle component for the upper right corner
-const EditModeToggle = () => {
-  const { editMode, toggleEditMode } = useSceneContext();
-
-  return (
-    <div className="fixed top-4 right-4 z-50 flex items-center bg-background/40 backdrop-blur-xl px-3 py-2 rounded-full">
-      <span className="text-xs mr-2 text-white">Edit Mode</span>
-      <Switch checked={editMode} onCheckedChange={toggleEditMode} />
-    </div>
-  );
-};
 
 // Loading fallback component
 const VisualizerLoading = () => (
@@ -187,7 +174,6 @@ function HomeContent() {
       }
     >
       <div className={isFullScreen ? "hidden" : "block"}>
-        <EditModeToggle />
         <Toolbar
           selectedVisualizer={settings.visualizerType}
           onVisualizerChange={handleVisualizerChange}
