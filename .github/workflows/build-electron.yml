@@ -47,6 +47,8 @@ jobs:
     needs: build # Run this job only after the build job is successful
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
