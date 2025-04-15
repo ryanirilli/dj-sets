@@ -5,6 +5,7 @@ import { AudioProvider, useAudio } from "@/contexts/AudioContext";
 import { SceneProvider } from "@/contexts/SceneContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { useFullScreen } from "@/contexts/FullScreenContext";
+import { useIsElectron } from "@/hooks/useIsElectron";
 import { Toolbar } from "@/components/Toolbar";
 import { VisualizerType, VALID_VISUALIZER_TYPES } from "@/types/visualizers";
 import {
@@ -34,6 +35,7 @@ function HomeContent() {
   const { audioData } = useAudio();
   const { settings, updateSettings } = useSettings();
   const { isFullScreen, toggleFullScreen } = useFullScreen();
+  const isElectron = useIsElectron();
   const [activeVisualizerType, setActiveVisualizerType] =
     useState<VisualizerType>(settings.visualizerType);
 
@@ -81,6 +83,31 @@ function HomeContent() {
     );
     setActiveVisualizerType(settings.visualizerType);
   }, [settings.visualizerType]);
+
+  // Add global key listener for fullscreen toggle
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore key presses if an input field is focused
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      // Cmd/Ctrl + F: Toggle Fullscreen state
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        toggleFullScreen();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [toggleFullScreen]);
 
   // Function to handle visualizer changes
   const handleVisualizerChange = (type: VisualizerType) => {

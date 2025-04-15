@@ -10,13 +10,24 @@ import {
   getColorPalettes,
 } from "@/types/colorPalettes";
 import StatsDisplay from "@/components/StatsDisplay";
-import { useSettings } from "@/contexts/SettingsContext";
+import { useSettings } from "./SettingsContext";
+import { ShortcutsDialog } from "@/components/ShortcutsDialog";
+import { useIsElectron } from "../../hooks/useIsElectron";
 
 // Add StatsData interface
 interface StatsData {
   fps: number;
   geometries: number;
   textures: number;
+}
+
+// Add type for electronAPI if it doesn't exist globally
+declare global {
+  interface Window {
+    electronAPI?: {
+      isElectron: boolean;
+    };
+  }
 }
 
 // Force render component to ensure continuous animation
@@ -52,9 +63,11 @@ interface SceneProviderProps {
 const SceneContainer = ({
   children,
   editMode,
+  onDoubleClick,
 }: {
   children: ReactNode;
   editMode: boolean;
+  onDoubleClick: () => void;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 100, height: 100 }); // Size in percentage
@@ -325,6 +338,7 @@ const SceneContainer = ({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        onDoubleClick={editMode ? undefined : onDoubleClick}
       >
         <div className="w-full h-full">{children}</div>
       </div>
@@ -497,6 +511,7 @@ interface SceneContextType {
   setStats: (stats: StatsData) => void;
   editMode: boolean;
   toggleEditMode: () => void;
+  toggleShortcutsDialog: () => void;
 }
 
 const SceneContext = createContext<SceneContextType>({
@@ -524,6 +539,7 @@ const SceneContext = createContext<SceneContextType>({
   setStats: () => {},
   editMode: false,
   toggleEditMode: () => {},
+  toggleShortcutsDialog: () => {},
 });
 
 export const useSceneContext = () => useContext(SceneContext);
@@ -807,7 +823,8 @@ const ColorTintedEnvironment = () => {
 
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   // Use SettingsContext for state management
-  const { settings, updateSettings, getColorPalette } = useSettings();
+  const { settings, updateSettings, getColorPalette, toggleSectionOpen } =
+    useSettings();
   const [nextPalette, setNextPalette] = useState<ColorPalette | null>(null);
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -819,6 +836,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     geometries: 0,
     textures: 0,
   });
+  const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
+  const isElectron = useIsElectron();
 
   // Convert settings to local state variables
   const autoRotate = settings.autoRotate;
@@ -897,11 +916,59 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     updateSettings("showPerformanceStats", !showPerformanceStats);
   }, [showPerformanceStats, updateSettings]);
 
-  // Function to toggle edit mode
+  // Function to toggle edit mode (used by double-click and Enter key)
   const toggleEditMode = useCallback(() => {
     updateSettings("editMode", !editMode);
     console.log("Toggling edit mode to:", !editMode);
   }, [editMode, updateSettings]);
+
+  // Function to toggle shortcuts dialog
+  const toggleShortcutsDialog = useCallback(() => {
+    setIsShortcutsDialogOpen((prev) => !prev);
+  }, []);
+
+  // Global keyboard listener
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore key presses if an input field is focused
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      // Enter key: Exit edit mode
+      if (event.key === "Enter" && editMode) {
+        event.preventDefault();
+        toggleEditMode();
+      }
+
+      // '?' key: Toggle Shortcuts Dialog
+      if (event.key === "?") {
+        event.preventDefault();
+        toggleShortcutsDialog();
+      }
+
+      // // Cmd/Ctrl + F: Toggle Fullscreen (Electron only) - MOVED TO HomeContent
+      // if (
+      //   isElectron &&
+      //   (event.metaKey || event.ctrlKey) &&
+      //   event.key.toLowerCase() === \"f\"
+      // ) {
+      //   event.preventDefault();
+      //   // Use the exposed API from preload script
+      //   window.electronAPI?.toggleFullScreen?.();
+      // }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+    // Add dependencies for keys that trigger state changes or actions
+  }, [editMode, toggleEditMode, toggleShortcutsDialog, isElectron]);
 
   // Create a transitioning palette by interpolating between current and next
   const getTransitioningPalette = useCallback((): ColorPalette => {
@@ -1064,12 +1131,13 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     setStats,
     editMode,
     toggleEditMode,
+    toggleShortcutsDialog,
   };
 
   return (
     <SceneContext.Provider value={contextValue}>
       <div className="absolute inset-0 flex flex-col w-full h-full">
-        <SceneContainer editMode={editMode}>
+        <SceneContainer editMode={editMode} onDoubleClick={toggleEditMode}>
           <Canvas
             camera={{
               position: [0, 2, 10],
@@ -1179,6 +1247,11 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
           )}
         </SceneContainer>
         {children}
+        {/* Add the Shortcuts Dialog */}
+        <ShortcutsDialog
+          open={isShortcutsDialogOpen}
+          onOpenChange={setIsShortcutsDialogOpen}
+        />
       </div>
     </SceneContext.Provider>
   );

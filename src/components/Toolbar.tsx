@@ -18,10 +18,17 @@ import {
   FaStepBackward,
   FaExpand,
   FaCompress,
+  FaQuestionCircle,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Sheet, SheetContent, SheetClose } from "@/components/ui/custom-sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetClose,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Vector3 } from "three";
 import type { MediaDeviceInfo } from "../types/audio";
 import { useIsElectron } from "../../hooks/useIsElectron";
@@ -80,6 +87,7 @@ export const Toolbar = ({
     togglePerformanceStats,
     editMode,
     toggleEditMode,
+    toggleShortcutsDialog,
   } = useSceneContext();
 
   // Access settings context for persistent UI state
@@ -88,6 +96,31 @@ export const Toolbar = ({
   const { openSections } = settings;
 
   const progressRef = useRef<HTMLDivElement>(null);
+
+  // Add keyboard listener for 's' to toggle the settings sheet
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore key presses if an input field is focused
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      // 's' key: Toggle Settings Sheet
+      if (event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        setIsOpen((prev) => !prev); // Toggle the sheet's open state
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]); // Re-run if isOpen changes (though not strictly necessary for listener logic)
 
   // Format time in minutes:seconds
   const formatTime = useCallback((time: number) => {
@@ -141,6 +174,18 @@ export const Toolbar = ({
     </Button>
   );
 
+  // Add a button for the shortcuts dialog - ONLY IF in Electron
+  const shortcutsButton = isElectron ? (
+    <Button
+      onClick={toggleShortcutsDialog}
+      variant="ghost"
+      className="rounded-full"
+      title="Keyboard Shortcuts (?)"
+    >
+      <FaQuestionCircle size={16} />
+    </Button>
+  ) : null; // Render null if not in Electron
+
   const fullScreenButton = toggleFullScreen && (
     <Button
       onClick={toggleFullScreen}
@@ -160,6 +205,7 @@ export const Toolbar = ({
       {isElectron ? (
         // Electron: Floating buttons bottom-right
         <div className="absolute bottom-4 right-4 z-50 flex space-x-2">
+          {shortcutsButton}
           {fullScreenButton}
           {settingsButton}
         </div>
@@ -245,9 +291,12 @@ export const Toolbar = ({
         <SheetContent
           side="right"
           className="w-full max-w-md p-0 flex flex-col h-full bg-sidebar/80 backdrop-blur-md border-l border-border rounded-l-xl"
+          hideDefaultCloseButton={true}
         >
-          <div className="p-4 flex justify-between items-center border-b border-border">
-            <h2 className="text-sidebar-foreground font-medium">Settings</h2>
+          <SheetHeader className="p-4 flex flex-row justify-between items-center border-b border-border">
+            <SheetTitle className="text-sidebar-foreground font-medium">
+              Settings
+            </SheetTitle>
             <SheetClose asChild>
               <Button
                 variant="ghost"
@@ -257,7 +306,7 @@ export const Toolbar = ({
                 <FaTimes size={16} />
               </Button>
             </SheetClose>
-          </div>
+          </SheetHeader>
 
           {/* Main content area with scrolling */}
           <div className="flex-1 overflow-y-auto pb-16 custom-scrollbar">
