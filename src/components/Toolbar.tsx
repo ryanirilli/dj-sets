@@ -592,9 +592,9 @@ export const Toolbar = ({
                   Download Desktop App
                 </p>
                 <Button variant="outline" size="sm" asChild className="w-full">
-                  {/* Construct the URL dynamically using environment variables */}
+                  {/* Link to the GitHub Release asset */}
                   <a
-                    href={`/downloads/${process.env.NEXT_PUBLIC_PRODUCT_NAME}-${process.env.NEXT_PUBLIC_APP_VERSION}.dmg`}
+                    href={`https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO}/releases/download/v${process.env.NEXT_PUBLIC_APP_VERSION}/${process.env.NEXT_PUBLIC_PRODUCT_NAME}-${process.env.NEXT_PUBLIC_APP_VERSION}.dmg`}
                     download
                   >
                     <Download className="mr-2 h-4 w-4" /> Download for Mac
