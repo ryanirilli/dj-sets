@@ -1,0 +1,101 @@
+name: Build Electron App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-latest # Only run on macOS
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Electron app for Mac
+        run: npm run electron:build -- --mac # Explicitly build for mac
+        env:
+          # Required for macOS signing, set secrets in GitHub repository settings
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Required for notarization if enabled
+
+      - name: Prepare Artifacts Directory
+        run: mkdir -p public/downloads
+
+      - name: Move Artifacts (macOS)
+        run: |
+          find dist -maxdepth 1 -name "*.dmg" -exec mv {} public/downloads/ \; # Only move DMG
+          # find dist -maxdepth 1 -name "*.zip" -exec mv {} public/downloads/ \; # Remove zip move if not needed
+
+      - name: Upload Artifacts (for viewing build results)
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-build-mac # Updated artifact name
+          path: public/downloads/*.dmg # Only upload DMG
+
+  commit-artifacts:
+    needs: build # Run this job only after the build job is successful
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check last commit message
+        id: check_commit
+        run: |
+          LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Last commit message: $LAST_COMMIT_MSG"
+          if [[ "$LAST_COMMIT_MSG" == *"CI build artifacts"* ]]; then
+            echo "Last commit was from CI, skipping commit."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Last commit was not from CI, proceeding."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+        if: steps.check_commit.outputs.skip == 'false'
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: electron-build-mac # Use the specific artifact name
+          path: public/downloads
+          # No pattern needed, downloading specific artifact
+          # merge-multiple: true # Not needed anymore
+        if: steps.check_commit.outputs.skip == 'false'
+
+      - name: List downloaded files
+        run: ls -R public/downloads
+        if: steps.check_commit.outputs.skip == 'false'
+
+      - name: Commit and push artifacts
+        if: steps.check_commit.outputs.skip == 'false'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          mkdir -p public/downloads
+          git add public/downloads/*.dmg # Only add the DMG file
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: Add CI build artifacts (macOS) [skip ci]"
+            git push
+          fi

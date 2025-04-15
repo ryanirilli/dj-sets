@@ -22,6 +22,7 @@ import {
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Download } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -583,6 +584,24 @@ export const Toolbar = ({
                 </div>
               </div>
             </div>
+
+            {/* Download Button Section - Only shown in browser */}
+            {!isElectron && (
+              <div className="mt-auto border-t border-border p-4">
+                <p className="mb-2 text-center text-sm font-medium text-sidebar-foreground">
+                  Download Desktop App
+                </p>
+                <Button variant="outline" size="sm" asChild className="w-full">
+                  {/* Construct the URL dynamically using environment variables */}
+                  <a
+                    href={`/downloads/${process.env.NEXT_PUBLIC_PRODUCT_NAME}-${process.env.NEXT_PUBLIC_APP_VERSION}.dmg`}
+                    download
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Download for Mac
+                  </a>
+                </Button>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

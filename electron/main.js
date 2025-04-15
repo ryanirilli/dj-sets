@@ -15,30 +15,12 @@ function createWindow() {
     },
   });
 
-  const loadURL = isDev ? "http://localhost:3000" : "YOUR_PRODUCTION_URL"; // Replace with your production URL
+  const loadURL = isDev
+    ? "http://localhost:3000"
+    : "https://www.thefullset.app/";
 
-  // Validate URL before loading
-  try {
-    new URL(loadURL); // Check if it's a valid URL
-    mainWindow.loadURL(loadURL);
-  } catch (error) {
-    if (loadURL === "YOUR_PRODUCTION_URL") {
-      console.error(
-        'Error: Production URL is not set. Please replace "YOUR_PRODUCTION_URL" in electron/main.js with your actual production deployment URL.'
-      );
-      // Optionally, load a local error page or quit the app
-      // mainWindow.loadFile('path/to/error.html');
-      app.quit();
-      return; // Stop further execution
-    } else {
-      console.error("Error loading URL:", error);
-      // Handle other URL errors if necessary
-      app.quit();
-      return;
-    }
-  }
+  mainWindow.loadURL(loadURL);
 
-  // Open DevTools automatically if in development
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }

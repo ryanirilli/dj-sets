@@ -55,7 +55,7 @@
   },
   "build": {
     "appId": "com.example.yourapp",
-    "productName": "YourAppName",
+    "productName": "TheFullSet",
     "files": [
       "electron/**/*",
       "node_modules/**/*",
