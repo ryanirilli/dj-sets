@@ -193,36 +193,47 @@ function HomeContent() {
   };
 
   return (
-    <SceneProvider
-      sceneContent={
-        <Suspense fallback={<VisualizerLoading />}>
-          {renderVisualizer()}
-        </Suspense>
-      }
-    >
-      <div className={isFullScreen ? "hidden" : "block"}>
-        <Toolbar
-          selectedVisualizer={settings.visualizerType}
-          onVisualizerChange={handleVisualizerChange}
-          visualizersInfo={visualizersInfo}
-          isFullScreen={isFullScreen}
-          toggleFullScreen={toggleFullScreen}
-        />
-      </div>
-
-      {/* ESC key indicator - only shown briefly when entering fullscreen */}
-      {isFullScreen && (
+    <div className="h-screen w-screen flex flex-col bg-black">
+      {/* Draggable top bar for Electron */}
+      {isElectron && (
         <div
-          className="fixed top-4 right-4 z-50 bg-background/40 backdrop-blur-xl px-3 py-2 rounded-full text-white text-xs opacity-80 animate-fadeOut"
-          style={{
-            animation: "fadeOut 2s forwards",
-            animationDelay: "3s",
-          }}
-        >
-          Press ESC to exit fullscreen
-        </div>
+          className="h-8 w-full flex-shrink-0" // Height for drag area
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties} // Make it draggable
+        ></div>
       )}
-    </SceneProvider>
+      <div className="flex-grow relative">
+        <SceneProvider
+          sceneContent={
+            <Suspense fallback={<VisualizerLoading />}>
+              {renderVisualizer()}
+            </Suspense>
+          }
+        >
+          <div className={isFullScreen ? "hidden" : "block"}>
+            <Toolbar
+              selectedVisualizer={settings.visualizerType}
+              onVisualizerChange={handleVisualizerChange}
+              visualizersInfo={visualizersInfo}
+              isFullScreen={isFullScreen}
+              toggleFullScreen={toggleFullScreen}
+            />
+          </div>
+
+          {/* ESC key indicator - only shown briefly when entering fullscreen */}
+          {isFullScreen && (
+            <div
+              className="fixed top-4 right-4 z-50 bg-background/40 backdrop-blur-xl px-3 py-2 rounded-full text-white text-xs opacity-80 animate-fadeOut"
+              style={{
+                animation: "fadeOut 2s forwards",
+                animationDelay: "3s",
+              }}
+            >
+              Press ESC to exit fullscreen
+            </div>
+          )}
+        </SceneProvider>
+      </div>
+    </div>
   );
 }
 

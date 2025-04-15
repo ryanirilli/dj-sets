@@ -823,8 +823,7 @@ const ColorTintedEnvironment = () => {
 
 export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   // Use SettingsContext for state management
-  const { settings, updateSettings, getColorPalette, toggleSectionOpen } =
-    useSettings();
+  const { settings, updateSettings, getColorPalette } = useSettings();
   const [nextPalette, setNextPalette] = useState<ColorPalette | null>(null);
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);

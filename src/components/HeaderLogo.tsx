@@ -28,9 +28,7 @@ const HeaderLogo: React.FC = () => {
 
   return (
     <div
-      className={`fixed top-4 left-4 md:top-8 md:left-16 z-50 ${
-        isFullScreen ? "hidden" : "block"
-      }`}
+      className={`fixed top-8 left-4 z-50 ${isFullScreen ? "hidden" : "block"}`}
     >
       <Logo
         width={75}

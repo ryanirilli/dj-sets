@@ -298,11 +298,7 @@ export const Toolbar = ({
               Settings
             </SheetTitle>
             <SheetClose asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-full"
-              >
+              <Button variant="ghost" size="icon" className="h-9 w-9">
                 <FaTimes size={16} />
               </Button>
             </SheetClose>
