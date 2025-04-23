@@ -28,12 +28,22 @@ const InstallationInstructionsDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[525px]">
+      <DialogContent
+        className="sm:max-w-[525px]"
+        onInteractOutside={(e) => {
+          e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>macOS Installation Instructions</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <ol className="list-none space-y-4 pl-5 text-sm">
+            <li className="relative pl-6 before:content-[counter(step)] before:absolute before:-left-1 before:top-0 before:w-5 before:h-5 before:rounded-full before:bg-gray-100 dark:before:bg-gray-800 before:text-center before:text-xs before:font-semibold before:leading-5">
+              Click <strong>Download Now</strong> below and download the file
+              named <code>TheFullSet-0.1.0.dmg</code> from the GitHub Releases
+              page.
+            </li>
             <li className="relative pl-6 before:content-[counter(step)] before:absolute before:-left-1 before:top-0 before:w-5 before:h-5 before:rounded-full before:bg-gray-100 dark:before:bg-gray-800 before:text-center before:text-xs before:font-semibold before:leading-5">
               Open the downloaded <code>.dmg</code> file.
             </li>
@@ -62,7 +72,12 @@ const InstallationInstructionsDialog = ({
             Cancel
           </Button>
           <Button asChild className="rounded-full">
-            <a href={downloadUrl} download onClick={onClose}>
+            <a
+              href={downloadUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Download className="mr-2 h-4 w-4" /> Download Now
             </a>
           </Button>
