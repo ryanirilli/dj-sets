@@ -104,7 +104,8 @@ export const Toolbar = ({
   const repo = process.env.NEXT_PUBLIC_GITHUB_REPO || "ryanirilli/dj-sets"; // Provide a fallback or ensure it's set
   const version = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0"; // Provide a fallback or ensure it's set
   const productName = process.env.NEXT_PUBLIC_PRODUCT_NAME || "The Full Set"; // Provide a fallback or ensure it's set
-  const downloadUrl = `https://github.com/${repo}/releases/download/v${version}/${productName}-${version}.dmg`;
+  // Update downloadUrl to point to the general releases page
+  const downloadUrl = `https://github.com/${repo}/releases`;
 
   // Add keyboard listener for 's' to toggle the settings sheet
   useEffect(() => {
