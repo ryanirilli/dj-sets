@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,14 @@ const InstallationInstructionsDialog = ({
   onClose,
   downloadUrl,
 }: InstallationInstructionsDialogProps): JSX.Element => {
+  // Add state to detect touch devices
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+  // Add effect to check for touch support on client-side
+  useEffect(() => {
+    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  }, []);
+
   // Update commands for the new filename (no spaces, no quotes needed)
   const commandToCopy = "xattr -cr /Applications/TheFullSet.app"; // For clipboard
 
@@ -71,16 +79,19 @@ const InstallationInstructionsDialog = ({
           <Button variant="ghost" className="rounded-full" onClick={onClose}>
             Cancel
           </Button>
-          <Button asChild className="rounded-full">
-            <a
-              href={downloadUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Download className="mr-2 h-4 w-4" /> Download Now
-            </a>
-          </Button>
+          {/* Conditionally render Download button - hide on touch devices */}
+          {!isTouchDevice && (
+            <Button asChild className="rounded-full">
+              <a
+                href={downloadUrl}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Download className="mr-2 h-4 w-4" /> Download Now
+              </a>
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
       <style jsx>{`
