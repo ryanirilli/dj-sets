@@ -33,6 +33,7 @@ import {
 import { Vector3 } from "three";
 import type { MediaDeviceInfo } from "../types/audio";
 import { useIsElectron } from "../../hooks/useIsElectron";
+import InstallationInstructionsDialog from "./InstallationInstructionsDialog";
 
 interface ToolbarProps {
   selectedVisualizer: VisualizerType;
@@ -50,6 +51,7 @@ export const Toolbar = ({
   toggleFullScreen,
 }: ToolbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isInstallDialogOpen, setIsInstallDialogOpen] = useState(false);
   const {
     setAudioFile,
     currentAudioFile,
@@ -97,6 +99,12 @@ export const Toolbar = ({
   const { openSections } = settings;
 
   const progressRef = useRef<HTMLDivElement>(null);
+
+  // Construct the download URL (ensure these env vars are set and prefixed with NEXT_PUBLIC_)
+  const repo = process.env.NEXT_PUBLIC_GITHUB_REPO || "ryanirilli/dj-sets"; // Provide a fallback or ensure it's set
+  const version = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0"; // Provide a fallback or ensure it's set
+  const productName = process.env.NEXT_PUBLIC_PRODUCT_NAME || "The Full Set"; // Provide a fallback or ensure it's set
+  const downloadUrl = `https://github.com/${repo}/releases/download/v${version}/${productName}-${version}.dmg`;
 
   // Add keyboard listener for 's' to toggle the settings sheet
   useEffect(() => {
@@ -306,7 +314,7 @@ export const Toolbar = ({
           </SheetHeader>
 
           {/* Main content area with scrolling */}
-          <div className="flex-1 overflow-y-auto pb-16 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div>
               {/* Visualizers Section */}
               <div>
@@ -584,27 +592,32 @@ export const Toolbar = ({
                 </div>
               </div>
             </div>
-
-            {/* Download Button Section - Only shown in browser */}
-            {!isElectron && (
-              <div className="mt-auto border-t border-border p-4">
-                <p className="mb-2 text-center text-sm font-medium text-sidebar-foreground">
-                  Download Desktop App
-                </p>
-                <Button variant="outline" size="sm" asChild className="w-full">
-                  {/* Link to the GitHub Release asset */}
-                  <a
-                    href={`https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO}/releases/download/v${process.env.NEXT_PUBLIC_APP_VERSION}/${process.env.NEXT_PUBLIC_PRODUCT_NAME}-${process.env.NEXT_PUBLIC_APP_VERSION}.dmg`}
-                    download
-                  >
-                    <Download className="mr-2 h-4 w-4" /> Download for Mac
-                  </a>
-                </Button>
-              </div>
-            )}
           </div>
+
+          {/* Download Button Section - Moved outside scrollable area */}
+          {!isElectron && (
+            <div className="mt-auto p-4 flex justify-center border-t border-border">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="rounded-full hover:bg-[hsl(var(--control-active))]"
+                onClick={() => setIsInstallDialogOpen(true)}
+              >
+                <Download className="mr-2 h-4 w-4" /> Download for Mac
+              </Button>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
+
+      {/* Installation Instructions Dialog - Render outside the Sheet */}
+      {!isElectron && (
+        <InstallationInstructionsDialog
+          isOpen={isInstallDialogOpen}
+          onClose={() => setIsInstallDialogOpen(false)}
+          downloadUrl={downloadUrl}
+        />
+      )}
     </>
   );
 };

@@ -20,10 +20,6 @@ function createWindow() {
     : "https://www.thefullset.app/";
 
   mainWindow.loadURL(loadURL);
-
-  if (isDev) {
-    mainWindow.webContents.openDevTools();
-  }
 }
 
 app.whenReady().then(() => {
