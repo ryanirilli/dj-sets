@@ -102,8 +102,6 @@ export const Toolbar = ({
 
   // Construct the download URL (ensure these env vars are set and prefixed with NEXT_PUBLIC_)
   const repo = process.env.NEXT_PUBLIC_GITHUB_REPO || "ryanirilli/dj-sets"; // Provide a fallback or ensure it's set
-  const version = process.env.NEXT_PUBLIC_APP_VERSION || "0.1.0"; // Provide a fallback or ensure it's set
-  const productName = process.env.NEXT_PUBLIC_PRODUCT_NAME || "The Full Set"; // Provide a fallback or ensure it's set
   // Update downloadUrl to point to the general releases page
   const downloadUrl = `https://github.com/${repo}/releases`;
 
