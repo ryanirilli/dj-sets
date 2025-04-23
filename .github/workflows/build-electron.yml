@@ -26,6 +26,7 @@ jobs:
       - name: Build Electron app for Mac
         run: npm run electron:build -- --mac # Explicitly build for mac
         env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false # Disable automatic code signing
           # CSC_LINK / CSC_KEY_PASSWORD secrets needed for signing
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
