@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"; // Assuming @ resolves to src/
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,6 @@ const InstallationInstructionsDialog = ({
   onClose,
   downloadUrl,
 }: InstallationInstructionsDialogProps): JSX.Element => {
-  const commandToDisplay = "xattr -cr /Applications/The\\ Full\\ Set.app"; // For display with escaped spaces
   const commandToCopy = "xattr -cr /Applications/The Full Set.app"; // For clipboard
 
   return (
