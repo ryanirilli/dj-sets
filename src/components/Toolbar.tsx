@@ -52,6 +52,7 @@ export const Toolbar = ({
 }: ToolbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isInstallDialogOpen, setIsInstallDialogOpen] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const {
     setAudioFile,
     currentAudioFile,
@@ -77,6 +78,11 @@ export const Toolbar = ({
       setInputType("file");
     }
   }, [isElectron, setInputType]);
+
+  // Add effect to check for touch support on client-side
+  useEffect(() => {
+    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  }, []);
 
   // Use scene context as a bridge to settings context
   const {
@@ -194,7 +200,8 @@ export const Toolbar = ({
     </Button>
   ) : null; // Render null if not in Electron
 
-  const fullScreenButton = toggleFullScreen && (
+  // Conditionally render the fullscreen button - hide on touch devices
+  const fullScreenButton = !isTouchDevice && toggleFullScreen && (
     <Button
       onClick={toggleFullScreen}
       variant="ghost"
