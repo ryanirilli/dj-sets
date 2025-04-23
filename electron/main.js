@@ -1,6 +1,7 @@
 const { app, BrowserWindow } = require("electron");
 const path = require("path");
-const isDev = process.env.NODE_ENV !== "production";
+// Use Electron's built-in method to check if running packaged
+const isDev = !app.isPackaged;
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
