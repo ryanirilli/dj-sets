@@ -55,7 +55,7 @@
   },
   "build": {
     "appId": "com.github.ryanirilli.thefullset",
-    "productName": "The Full Set",
+    "productName": "TheFullSet",
     "artifactName": "${productName}-${version}.${ext}",
     "files": [
       "electron/**/*",

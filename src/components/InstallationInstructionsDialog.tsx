@@ -23,7 +23,8 @@ const InstallationInstructionsDialog = ({
   onClose,
   downloadUrl,
 }: InstallationInstructionsDialogProps): JSX.Element => {
-  const commandToCopy = "xattr -cr /Applications/The Full Set.app"; // For clipboard
+  // Update commands for the new filename (no spaces, no quotes needed)
+  const commandToCopy = "xattr -cr /Applications/TheFullSet.app"; // For clipboard
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -37,7 +38,7 @@ const InstallationInstructionsDialog = ({
               Open the downloaded <code>.dmg</code> file.
             </li>
             <li className="relative pl-6 before:content-[counter(step)] before:absolute before:-left-1 before:top-0 before:w-5 before:h-5 before:rounded-full before:bg-gray-100 dark:before:bg-gray-800 before:text-center before:text-xs before:font-semibold before:leading-5">
-              Drag <strong>The Full Set.app</strong> to your{" "}
+              Drag <strong>TheFullSet.app</strong> to your{" "}
               <strong>Applications</strong> folder.
             </li>
             <li className="relative pl-6 before:content-[counter(step)] before:absolute before:-left-1 before:top-0 before:w-5 before:h-5 before:rounded-full before:bg-gray-100 dark:before:bg-gray-800 before:text-center before:text-xs before:font-semibold before:leading-5">
@@ -51,7 +52,7 @@ const InstallationInstructionsDialog = ({
               <CodeBlockWithCopy codeString={commandToCopy} />
             </li>
             <li className="relative pl-6 before:content-[counter(step)] before:absolute before:-left-1 before:top-0 before:w-5 before:h-5 before:rounded-full before:bg-gray-100 dark:before:bg-gray-800 before:text-center before:text-xs before:font-semibold before:leading-5">
-              You should now be able to open <strong>The Full Set</strong> from
+              You should now be able to open <strong>TheFullSet</strong> from
               your Applications folder.
             </li>
           </ol>
