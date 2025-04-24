@@ -23,6 +23,8 @@ import { getDefaultVisualizerType } from "@/components/visualizers";
 interface Settings {
   // Visualizer settings
   visualizerType: VisualizerType;
+  autoRotateVisualizers: boolean;
+  visualizerRotationDuration: number;
 
   // Audio settings
   selectedAudioFile: string | null;
@@ -50,6 +52,8 @@ interface Settings {
 // Default settings
 const DEFAULT_SETTINGS: Settings = {
   visualizerType: getDefaultVisualizerType(),
+  autoRotateVisualizers: true,
+  visualizerRotationDuration: 10000,
   selectedAudioFile: null,
   autoRotate: true,
   showGrid: false,

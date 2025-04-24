@@ -495,6 +495,10 @@ interface SceneContextType {
   setColorPalette: (paletteId: string) => void;
   autoRotateColors: boolean;
   setAutoRotateColors: (value: boolean) => void;
+  autoRotateVisualizers: boolean;
+  setAutoRotateVisualizers: (value: boolean) => void;
+  visualizerRotationDuration: number;
+  setVisualizerRotationDuration: (value: number) => void;
   transitionProgress: number;
   toggleAutoRotate: () => void;
   environment: string | null;
@@ -523,6 +527,10 @@ const SceneContext = createContext<SceneContextType>({
   setColorPalette: () => {},
   autoRotateColors: true,
   setAutoRotateColors: () => {},
+  autoRotateVisualizers: true,
+  setAutoRotateVisualizers: () => {},
+  visualizerRotationDuration: 20000,
+  setVisualizerRotationDuration: () => {},
   transitionProgress: 0,
   toggleAutoRotate: () => {},
   environment: null,
@@ -842,6 +850,8 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const autoRotate = settings.autoRotate;
   const showGrid = settings.showGrid;
   const autoRotateColors = settings.autoRotateColors;
+  const autoRotateVisualizers = settings.autoRotateVisualizers;
+  const visualizerRotationDuration = settings.visualizerRotationDuration;
   const colorPalette = getColorPalette();
   const environment = settings.environment;
   const backgroundBlurriness = settings.backgroundBlurriness;
@@ -879,6 +889,20 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
   const setAutoRotateColors = useCallback(
     (value: boolean) => {
       updateSettings("autoRotateColors", value);
+    },
+    [updateSettings]
+  );
+
+  const setAutoRotateVisualizers = useCallback(
+    (value: boolean) => {
+      updateSettings("autoRotateVisualizers", value);
+    },
+    [updateSettings]
+  );
+
+  const setVisualizerRotationDuration = useCallback(
+    (value: number) => {
+      updateSettings("visualizerRotationDuration", value);
     },
     [updateSettings]
   );
@@ -1114,6 +1138,10 @@ export function SceneProvider({ children, sceneContent }: SceneProviderProps) {
     setColorPalette,
     autoRotateColors,
     setAutoRotateColors,
+    autoRotateVisualizers,
+    setAutoRotateVisualizers,
+    visualizerRotationDuration,
+    setVisualizerRotationDuration,
     transitionProgress,
     toggleAutoRotate,
     environment,

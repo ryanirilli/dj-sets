@@ -31,7 +31,7 @@ interface AudioContextType {
   currentTime: number;
   duration: number;
   togglePlayPause: () => void;
-  setAudioFile: (file: string) => void;
+  setAudioFile: (file: string, forcePlay?: boolean) => void;
   currentAudioFile: string | null;
   bpm: number;
   onBeat: boolean;
@@ -160,35 +160,95 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (availableTracks.length === 0 || !currentAudioFile) return;
 
     const currentFileName = currentAudioFile.split("/").pop();
-    const currentIndex = availableTracks.findIndex(
+    let currentIndex = availableTracks.findIndex(
       (track) => track === currentFileName
     );
 
-    if (currentIndex === -1) return;
+    // If not found, default to starting the first track
+    if (currentIndex === -1) {
+      console.warn(
+        "Current track not found in available tracks, using first track"
+      );
+      currentIndex = 0;
+    }
 
     const nextIndex = (currentIndex + 1) % availableTracks.length;
     const nextTrack = `/audio/${availableTracks[nextIndex]}`;
 
-    setAudioFile(nextTrack);
+    console.log(`Switching from track ${currentIndex} to ${nextIndex}`);
+
+    // Update the current audio file state
+    setCurrentAudioFile(nextTrack);
     updateSettings("selectedAudioFile", nextTrack);
+
+    // Direct audio manipulation for more reliable playback
+    if (audioRef.current) {
+      // Set new source
+      audioRef.current.src = nextTrack;
+      audioRef.current.load();
+
+      // Play after a short delay
+      setTimeout(() => {
+        if (audioRef.current) {
+          // Try to play
+          const playPromise = audioRef.current.play();
+          if (playPromise) {
+            playPromise.catch((error) => {
+              console.error("Error playing next track:", error);
+            });
+          }
+          setIsPlaying(true);
+        }
+      }, 100);
+    }
   }, [availableTracks, currentAudioFile, updateSettings]);
 
   const previousTrack = useCallback(() => {
     if (availableTracks.length === 0 || !currentAudioFile) return;
 
     const currentFileName = currentAudioFile.split("/").pop();
-    const currentIndex = availableTracks.findIndex(
+    let currentIndex = availableTracks.findIndex(
       (track) => track === currentFileName
     );
 
-    if (currentIndex === -1) return;
+    // If not found, default to starting the last track
+    if (currentIndex === -1) {
+      console.warn(
+        "Current track not found in available tracks, using last track"
+      );
+      currentIndex = availableTracks.length - 1;
+    }
 
     const prevIndex =
       (currentIndex - 1 + availableTracks.length) % availableTracks.length;
     const prevTrack = `/audio/${availableTracks[prevIndex]}`;
 
-    setAudioFile(prevTrack);
+    console.log(`Switching from track ${currentIndex} to ${prevIndex}`);
+
+    // Update the current audio file state
+    setCurrentAudioFile(prevTrack);
     updateSettings("selectedAudioFile", prevTrack);
+
+    // Direct audio manipulation for more reliable playback
+    if (audioRef.current) {
+      // Set new source
+      audioRef.current.src = prevTrack;
+      audioRef.current.load();
+
+      // Play after a short delay
+      setTimeout(() => {
+        if (audioRef.current) {
+          // Try to play
+          const playPromise = audioRef.current.play();
+          if (playPromise) {
+            playPromise.catch((error) => {
+              console.error("Error playing previous track:", error);
+            });
+          }
+          setIsPlaying(true);
+        }
+      }, 100);
+    }
   }, [availableTracks, currentAudioFile, updateSettings]);
 
   // Define handleTimeUpdate and handleDurationChange first
@@ -612,12 +672,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   const setAudioFile = useCallback(
-    (file: string) => {
-      console.log("Setting new audio file:", file);
+    (file: string, forcePlay: boolean = false) => {
+      console.log("Setting new audio file:", file, "Force play:", forcePlay);
       setCurrentAudioFile(file);
 
       if (audioRef.current) {
-        const wasPlaying = !audioRef.current.paused;
+        // Determine if we should play the new track
+        // Either because it was already playing or because forcePlay is true
+        const wasPlaying = !audioRef.current.paused || forcePlay;
+        console.log(
+          "Was playing:",
+          !audioRef.current.paused,
+          "Force play:",
+          forcePlay,
+          "Will play:",
+          wasPlaying
+        );
 
         // Pause current playback
         audioRef.current.pause();
@@ -628,41 +698,47 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           animationFrameRef.current = undefined;
         }
 
-        // STEP 1: Completely clean up all audio resources
-        // Disconnect and clean up all audio nodes
-        if (sourceRef.current) {
-          try {
-            sourceRef.current.disconnect();
-          } catch (error) {
-            console.error("Error disconnecting source:", error);
-          }
-          sourceRef.current = null;
-        }
-
-        if (analyserRef.current) {
-          try {
-            analyserRef.current.disconnect();
-          } catch (error) {
-            console.error("Error disconnecting analyser:", error);
-          }
-        }
-
-        // Close the AudioContext completely
-        if (audioContextRef.current) {
-          try {
-            if (audioContextRef.current.state !== "closed") {
-              audioContextRef.current.close();
-              console.log("AudioContext closed successfully");
+        // STEP 1: Complete cleanup - ensure all resources are properly released
+        // This helps prevent zombie audio contexts on mobile devices
+        const cleanupAudio = () => {
+          // Disconnect and clean up all audio nodes
+          if (sourceRef.current) {
+            try {
+              sourceRef.current.disconnect();
+            } catch (error) {
+              console.error("Error disconnecting source:", error);
             }
-          } catch (error) {
-            console.error("Error closing AudioContext:", error);
+            sourceRef.current = null;
           }
-          audioContextRef.current = null;
-          analyserRef.current = null;
-        }
 
-        // Reset connection state
-        isSourceConnectedRef.current = false;
+          if (analyserRef.current) {
+            try {
+              analyserRef.current.disconnect();
+            } catch (error) {
+              console.error("Error disconnecting analyser:", error);
+            }
+          }
+
+          // Close the AudioContext completely
+          if (audioContextRef.current) {
+            try {
+              if (audioContextRef.current.state !== "closed") {
+                audioContextRef.current.close();
+                console.log("AudioContext closed successfully");
+              }
+            } catch (error) {
+              console.error("Error closing AudioContext:", error);
+            }
+            audioContextRef.current = null;
+            analyserRef.current = null;
+          }
+
+          // Reset connection state
+          isSourceConnectedRef.current = false;
+        };
+
+        // Perform cleanup
+        cleanupAudio();
 
         // STEP 2: Reset all beat detection state
         // Reset all beat detection variables to their initial values
@@ -679,47 +755,30 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setBeatTime(0);
         setAudioData(null);
 
-        // STEP 3: Create a new audio element
-        const newAudio = new Audio();
-        newAudio.src = file;
-        newAudio.crossOrigin = "anonymous";
-        newAudio.preload = "auto"; // Ensure audio is preloaded
-
-        // Add event listeners to the new audio element
-        newAudio.addEventListener("timeupdate", handleTimeUpdate);
-        newAudio.addEventListener("durationchange", handleDurationChange);
-        newAudio.addEventListener("ended", () => setIsPlaying(false));
-
-        // STEP 4: Replace the audio element in the DOM
-        if (audioRef.current.parentNode) {
-          const currentAudio = audioRef.current;
-
-          if (currentAudio.parentNode) {
-            currentAudio.parentNode.replaceChild(newAudio, currentAudio);
-            console.log("Audio element replaced in DOM");
-          }
-
-          // Update our ref
-          if (audioRef && typeof audioRef === "object") {
-            (audioRef as React.MutableRefObject<HTMLAudioElement>).current =
-              newAudio;
-          }
+        // STEP 3: Create a new audio element and update the src
+        if (audioRef.current) {
+          audioRef.current.src = file;
+          audioRef.current.crossOrigin = "anonymous";
+          audioRef.current.preload = "auto"; // Ensure audio is preloaded
+          audioRef.current.load(); // Important: force reload the new source
         }
 
-        console.log("Audio element replaced, beat detection state reset");
+        // STEP 4: Wait for the audio to be ready before attempting to play
+        const playWhenReady = () => {
+          if (!audioRef.current) return;
 
-        // STEP 5: If it was playing before, start playing the new audio
-        if (wasPlaying) {
-          // Use a longer timeout to ensure everything is ready
-          setTimeout(() => {
+          if (wasPlaying) {
             try {
-              // Create a completely new AudioContext
-              audioContextRef.current = new (window.AudioContext ||
+              // Create a completely new AudioContext to avoid issues on mobile
+              const AudioContextClass =
+                window.AudioContext ||
                 (
                   window as unknown as {
                     webkitAudioContext: typeof AudioContext;
                   }
-                ).webkitAudioContext)();
+                ).webkitAudioContext;
+
+              audioContextRef.current = new AudioContextClass();
               console.log(
                 "New AudioContext created:",
                 audioContextRef.current.state
@@ -730,13 +789,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
               analyserRef.current.fftSize = 128;
               analyserRef.current.smoothingTimeConstant = 0.5;
 
-              // Ensure the audio element is ready
+              // Create and connect the source - AFTER the audio element is ready
               if (
                 audioRef.current &&
                 audioContextRef.current &&
                 analyserRef.current
               ) {
-                // Create and connect the source
                 sourceRef.current =
                   audioContextRef.current.createMediaElementSource(
                     audioRef.current
@@ -759,34 +817,99 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
                     );
                 }
 
-                // Start playback
-                audioRef.current
-                  .play()
-                  .then(() => {
-                    console.log("New audio playback started");
-                    // Start the animation frame for beat detection
-                    updateAudioData();
-                    setIsPlaying(true);
-                  })
-                  .catch((error) => {
-                    console.error("Error playing new audio:", error);
-                    setIsPlaying(false);
-                  });
-              } else {
-                console.error("Audio elements not properly initialized");
-                setIsPlaying(false);
+                // Handle the 'canplaythrough' event to ensure the audio is ready to play
+                const handleCanPlay = () => {
+                  console.log("Audio can play through, attempting playback");
+                  // Remove the event listener to avoid multiple calls
+                  audioRef.current?.removeEventListener(
+                    "canplaythrough",
+                    handleCanPlay
+                  );
+
+                  // Start playback
+                  if (audioRef.current) {
+                    const playPromise = audioRef.current.play();
+                    if (playPromise !== undefined) {
+                      playPromise
+                        .then(() => {
+                          console.log(
+                            "New audio playback started successfully"
+                          );
+                          // Start the animation frame for beat detection
+                          updateAudioData();
+                          setIsPlaying(true);
+                        })
+                        .catch((error) => {
+                          console.error("Error playing new audio:", error);
+                          // Try one more time with user interaction simulation
+                          setTimeout(() => {
+                            if (audioRef.current) {
+                              audioRef.current
+                                .play()
+                                .then(() => {
+                                  console.log(
+                                    "Audio playback started on second attempt"
+                                  );
+                                  updateAudioData();
+                                  setIsPlaying(true);
+                                })
+                                .catch((err) => {
+                                  console.error(
+                                    "Failed to play even on second attempt:",
+                                    err
+                                  );
+                                  setIsPlaying(false);
+                                });
+                            }
+                          }, 100);
+                        });
+                    } else {
+                      // For browsers that don't return a promise
+                      console.log(
+                        "Browser doesn't return play promise, assuming playback started"
+                      );
+                      updateAudioData();
+                      setIsPlaying(true);
+                    }
+                  }
+                };
+
+                // Check if the audio is already ready to play
+                if (audioRef.current.readyState >= 3) {
+                  handleCanPlay();
+                } else {
+                  // Otherwise wait for the canplaythrough event
+                  audioRef.current.addEventListener(
+                    "canplaythrough",
+                    handleCanPlay
+                  );
+
+                  // Set a timeout to handle cases where canplaythrough doesn't fire
+                  setTimeout(() => {
+                    if (audioRef.current && !isPlaying) {
+                      console.log(
+                        "Canplaythrough timeout, attempting playback anyway"
+                      );
+                      handleCanPlay();
+                    }
+                  }, 2000);
+                }
               }
             } catch (error) {
               console.error("Error in audio initialization:", error);
               setIsPlaying(false);
             }
-          }, 300); // Increased delay to ensure everything is ready
-        } else {
-          setIsPlaying(false);
-        }
+          } else {
+            setIsPlaying(false);
+          }
+        };
+
+        // Wait a short time to ensure the audio element is ready
+        // This is especially important on mobile devices
+        setTimeout(playWhenReady, 300);
       }
     },
-    [handleTimeUpdate, handleDurationChange, updateAudioData]
+    [handleTimeUpdate, handleDurationChange, updateAudioData, isPlaying]
   );
 
   // Initialize audio input devices

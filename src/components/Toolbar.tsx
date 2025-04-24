@@ -97,6 +97,8 @@ export const Toolbar = ({
     editMode,
     toggleEditMode,
     toggleShortcutsDialog,
+    autoRotateVisualizers,
+    setAutoRotateVisualizers,
   } = useSceneContext();
 
   // Access settings context for persistent UI state
@@ -343,33 +345,46 @@ export const Toolbar = ({
                       : "max-h-0 opacity-0"
                   }`}
                 >
-                  <div className="flex flex-wrap gap-2 pt-2 px-6 bg-background/10 rounded-lg mx-2 p-3">
-                    {visualizersInfo.map((visualizer) => (
-                      <Button
-                        key={visualizer.id}
-                        variant={
-                          selectedVisualizer === visualizer.id
-                            ? "default"
-                            : "secondary"
-                        }
-                        size="sm"
-                        className="rounded-full"
-                        onClick={() => {
-                          console.log(
-                            "[DEBUG] Toolbar visualizer button clicked:",
-                            visualizer.id
-                          );
-                          console.log(
-                            "[DEBUG] Current selected visualizer:",
-                            selectedVisualizer
-                          );
-                          onVisualizerChange(visualizer.id);
-                        }}
-                        title={visualizer.description}
-                      >
-                        {visualizer.name}
-                      </Button>
-                    ))}
+                  <div className="flex flex-col gap-3 pt-2 px-6 bg-background/10 rounded-lg mx-2 p-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium leading-none text-sidebar-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Auto-Cycle Visualizers
+                      </label>
+                      <Switch
+                        checked={autoRotateVisualizers}
+                        onCheckedChange={setAutoRotateVisualizers}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {visualizersInfo.map((visualizer) => (
+                        <Button
+                          key={visualizer.id}
+                          variant={
+                            selectedVisualizer === visualizer.id
+                              ? "default"
+                              : "secondary"
+                          }
+                          size="sm"
+                          className="rounded-full"
+                          onClick={() => {
+                            console.log(
+                              "[DEBUG] Toolbar visualizer button clicked:",
+                              visualizer.id
+                            );
+                            console.log(
+                              "[DEBUG] Current selected visualizer:",
+                              selectedVisualizer
+                            );
+                            onVisualizerChange(visualizer.id);
+                            // Turn off auto-rotation when manually selecting a visualizer
+                            setAutoRotateVisualizers(false);
+                          }}
+                          title={visualizer.description}
+                        >
+                          {visualizer.name}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

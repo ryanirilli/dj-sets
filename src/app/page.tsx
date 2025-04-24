@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { AudioProvider, useAudio } from "@/contexts/AudioContext";
-import { SceneProvider } from "@/contexts/SceneContext";
+import { SceneProvider, useSceneContext } from "@/contexts/SceneContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { useFullScreen } from "@/contexts/FullScreenContext";
 import { useIsElectron } from "@/hooks/useIsElectron";
@@ -36,8 +36,11 @@ function HomeContent() {
   const { settings, updateSettings } = useSettings();
   const { isFullScreen, toggleFullScreen } = useFullScreen();
   const isElectron = useIsElectron();
+  const { autoRotateVisualizers, visualizerRotationDuration } =
+    useSceneContext();
   const [activeVisualizerType, setActiveVisualizerType] =
     useState<VisualizerType>(settings.visualizerType);
+  const visualizerRotationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Log initial state
   useEffect(() => {
@@ -83,6 +86,57 @@ function HomeContent() {
     );
     setActiveVisualizerType(settings.visualizerType);
   }, [settings.visualizerType]);
+
+  // Auto-rotate visualizers
+  useEffect(() => {
+    // Clear any existing interval
+    if (visualizerRotationIntervalRef.current) {
+      clearInterval(visualizerRotationIntervalRef.current);
+      visualizerRotationIntervalRef.current = null;
+    }
+
+    // If auto-rotation is enabled, set up an interval to rotate visualizers
+    if (autoRotateVisualizers) {
+      console.log(
+        "[DEBUG] Setting up visualizer auto-rotation with duration:",
+        visualizerRotationDuration
+      );
+
+      visualizerRotationIntervalRef.current = setInterval(() => {
+        // Get the current visualizer index
+        const currentIndex = VALID_VISUALIZER_TYPES.findIndex(
+          (type) => type === settings.visualizerType
+        );
+
+        // Calculate the next visualizer index
+        const nextIndex = (currentIndex + 1) % VALID_VISUALIZER_TYPES.length;
+        const nextType = VALID_VISUALIZER_TYPES[nextIndex];
+
+        console.log(
+          "[DEBUG] Auto-rotating visualizer from",
+          settings.visualizerType,
+          "to",
+          nextType
+        );
+
+        // Update the visualizer type in settings
+        updateSettings("visualizerType", nextType);
+      }, visualizerRotationDuration);
+    }
+
+    // Clean up interval on unmount or when dependencies change
+    return () => {
+      if (visualizerRotationIntervalRef.current) {
+        clearInterval(visualizerRotationIntervalRef.current);
+        visualizerRotationIntervalRef.current = null;
+      }
+    };
+  }, [
+    autoRotateVisualizers,
+    visualizerRotationDuration,
+    settings.visualizerType,
+    updateSettings,
+  ]);
 
   // Add global key listener for fullscreen toggle
   useEffect(() => {
