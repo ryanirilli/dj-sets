@@ -193,7 +193,7 @@ function HomeContent() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-black">
+    <div className="h-dvh w-screen flex flex-col bg-black">
       {/* Draggable top bar for Electron */}
       {isElectron && (
         <div
@@ -209,7 +209,7 @@ function HomeContent() {
             </Suspense>
           }
         >
-          <div className={isFullScreen ? "hidden" : "block"}>
+          {!isFullScreen && (
             <Toolbar
               selectedVisualizer={settings.visualizerType}
               onVisualizerChange={handleVisualizerChange}
@@ -217,7 +217,7 @@ function HomeContent() {
               isFullScreen={isFullScreen}
               toggleFullScreen={toggleFullScreen}
             />
-          </div>
+          )}
 
           {/* ESC key indicator - only shown briefly when entering fullscreen */}
           {isFullScreen && (
