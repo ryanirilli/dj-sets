@@ -19,11 +19,6 @@ declare global {
   }
 }
 
-const isElectron =
-  typeof window !== "undefined" &&
-  window.electron &&
-  window.electron.isElectron === true;
-
 interface AudioContextType {
   audioData: Uint8Array | null;
   isPlaying: boolean;
