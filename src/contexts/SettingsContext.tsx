@@ -54,7 +54,7 @@ const DEFAULT_SETTINGS: Settings = {
   visualizerType: getDefaultVisualizerType(),
   autoRotateVisualizers: true,
   visualizerRotationDuration: 10000,
-  selectedAudioFile: null,
+  selectedAudioFile: "/audio/these-days.mp3",
   autoRotate: true,
   showGrid: false,
   autoRotateColors: true,
